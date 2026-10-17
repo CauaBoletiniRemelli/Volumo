@@ -1,0 +1,6 @@
+@Volumo_Api_HostAddress = https://localhost:7010
+
+GET {{Volumo_Api_HostAddress}}/health
+Accept: application/json
+
+###

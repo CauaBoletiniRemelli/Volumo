@@ -1,7 +1,22 @@
 <Solution>
   <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
     <File Path="CLAUDE.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="nuget.config" />
   </Folder>
-  <Project Path="VolumoAPI/VolumoAPI.csproj" />
-  <Project Path="VolumoWebApp/VolumoWebApp.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/Volumo.Api/Volumo.Api.csproj" />
+    <Project Path="src/Volumo.Client/Volumo.Client.csproj" />
+    <Project Path="src/Volumo.Domain/Volumo.Domain.csproj" />
+    <Project Path="src/Volumo.Infrastructure/Volumo.Infrastructure.csproj" />
+    <Project Path="src/Volumo.Shared/Volumo.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="tests/Directory.Build.props" />
+    <Project Path="tests/Volumo.Api.Tests/Volumo.Api.Tests.csproj" />
+    <Project Path="tests/Volumo.Architecture.Tests/Volumo.Architecture.Tests.csproj" />
+  </Folder>
 </Solution>

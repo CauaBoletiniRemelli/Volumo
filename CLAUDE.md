@@ -3,6 +3,9 @@
 Site/PWA para quem treina e para personal trainers montarem e venderem treinos.
 Planejamento de 14/10/2026.
 
+## Regras de trabalho para o Claude
+- **Não fazer commits** (nem push, amend ou merge). O usuário revisa e commita por conta própria; deixar as mudanças no working tree.
+
 ---
 
 ## 1. Diferenciais para fugir do padrão
@@ -98,7 +101,7 @@ Escolha: **Blazor WebAssembly**, pela produtividade em C# e modelos compartilhad
 
 ### Banco e infraestrutura
 - **SQL Server**: Express (gratuito, limite de 10 GB por banco) no MVP; Azure SQL Database ou licença Standard ao crescer.
-- **Hospedagem**: Azure App Service + Azure SQL; para economizar, VPS Linux (Hetzner, DigitalOcean, Contabo) com SQL Server Express em Docker.
+- **Hospedagem**: **MonsterASP.NET** (https://admin.monsterasp.net/) para a API e o site (Blazor WebAssembly). Alternativas se crescer: Azure App Service + Azure SQL ou VPS Linux (Hetzner, DigitalOcean, Contabo) com SQL Server Express em Docker.
 - **Pagamentos**: Mercado Pago, Asaas ou Stripe (Pix e assinatura recorrente).
 - **Fotos e vídeos**: Azure Blob, AWS S3 ou Cloudflare R2.
 
@@ -306,8 +309,7 @@ Levantar os custos mensais e calcular quantos personais pagantes cobrem tudo:
 
 | Custo | Observação |
 |---|---|
-| Hospedagem da API e banco | VPS com SQL Server Express é o mais barato no início |
-| Hospedagem do front | Estática; pode ser gratuita (Azure Static Web Apps, Cloudflare Pages) |
+| Hospedagem da API e do site | MonsterASP.NET (https://admin.monsterasp.net/) |
 | Domínio | .com.br e .com |
 | Armazenamento de fotos e vídeos | Cresce com o uso; Cloudflare R2 tende a ser o mais barato |
 | Gateway de pagamento | Taxa por transação |
