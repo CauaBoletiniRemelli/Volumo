@@ -27,6 +27,14 @@ public sealed partial class CaixaDeEmails : IEnvioDeEmail
         return (Guid.Parse(query["usuario"]!), query["token"]!);
     }
 
+    /// <summary>Token do link do último convite enviado para o endereço.</summary>
+    public string TokenDoConvite(string email)
+    {
+        var mensagem = Para(email).Last(m => m.Corpo.Contains("/aceitar-convite?", StringComparison.Ordinal));
+        var link = new Uri(LinkRegex().Match(mensagem.Corpo).Value);
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(link.Query)["token"]!;
+    }
+
     [GeneratedRegex(@"https://\S+")]
     private static partial Regex LinkRegex();
 }

@@ -68,5 +68,16 @@ public sealed record RedefinicaoDeSenha(
     [Required, StringLength(2048)] string Token,
     [Required, StringLength(128)] string NovaSenha);
 
+/// <summary>Cadastro de aluno pelo link do convite. O e-mail vem do convite, que já prova a posse dele.</summary>
+public sealed record CadastroDeAluno(
+    [Required, StringLength(2048)] string TokenConvite,
+    [Required, StringLength(120)] string Nome,
+    [Required, StringLength(128)] string Senha);
+
+/// <summary>Confirmação de identidade para ações sensíveis da própria conta.</summary>
+public sealed record ConfirmacaoDeSenha([Required, StringLength(128)] string Senha);
+
 /// <param name="PrecisaConfigurarDoisFatores">Personal sem 2FA: o app deve levar à configuração antes de tudo.</param>
-public sealed record DadosDaConta(Guid Id, string Email, IReadOnlyList<string> Papeis, bool DoisFatoresAtivo, bool PrecisaConfigurarDoisFatores);
+/// <param name="ContaInativa">Conta pausada pela própria pessoa: o app oferece "Reativar minha conta".</param>
+public sealed record DadosDaConta(
+    Guid Id, string Email, IReadOnlyList<string> Papeis, bool DoisFatoresAtivo, bool PrecisaConfigurarDoisFatores, bool ContaInativa);

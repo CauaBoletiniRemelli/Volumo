@@ -16,6 +16,9 @@ public static class VolumoClaims
 
     public const string MultiFactor = "mfa";
 
+    /// <summary>Presente quando a conta foi pausada pela própria pessoa: só /conta e reativação funcionam.</summary>
+    public const string InactiveAccount = "conta_inativa";
+
     public static Guid? UsuarioId(this System.Security.Claims.ClaimsPrincipal user) =>
         Guid.TryParse(user.FindFirst(Subject)?.Value, out var id) ? id : null;
 }
@@ -25,12 +28,24 @@ public sealed class AccessTokenIssuer(JwtSettings settings, TimeProvider clock)
 {
     private readonly JsonWebTokenHandler _handler = new();
 
-    public (string Token, DateTimeOffset ExpiresAt) Issue(Usuario usuario, IEnumerable<string> roles, bool comDoisFatores)
+    public (string Token, DateTimeOffset ExpiresAt) Issue(Usuario usuario, IEnumerable<string> roles, bool comDoisFatores, bool contaInativa)
     {
         ArgumentNullException.ThrowIfNull(usuario);
 
         var now = clock.GetUtcNow();
         var expiresAt = now.AddMinutes(settings.AccessTokenMinutes);
+        var claims = new Dictionary<string, object>
+        {
+            [VolumoClaims.Subject] = usuario.Id.ToString(),
+            [VolumoClaims.TokenId] = Guid.NewGuid().ToString(),
+            [VolumoClaims.Role] = roles.ToArray(),
+            [VolumoClaims.AuthenticationMethods] = comDoisFatores ? new[] { "pwd", VolumoClaims.MultiFactor } : new[] { "pwd" },
+        };
+        if (contaInativa)
+        {
+            claims[VolumoClaims.InactiveAccount] = "true";
+        }
+
         var token = _handler.CreateToken(new SecurityTokenDescriptor
         {
             Issuer = settings.Issuer,
@@ -39,13 +54,7 @@ public sealed class AccessTokenIssuer(JwtSettings settings, TimeProvider clock)
             NotBefore = now.UtcDateTime,
             Expires = expiresAt.UtcDateTime,
             SigningCredentials = new SigningCredentials(settings.Key, SecurityAlgorithms.HmacSha256),
-            Claims = new Dictionary<string, object>
-            {
-                [VolumoClaims.Subject] = usuario.Id.ToString(),
-                [VolumoClaims.TokenId] = Guid.NewGuid().ToString(),
-                [VolumoClaims.Role] = roles.ToArray(),
-                [VolumoClaims.AuthenticationMethods] = comDoisFatores ? new[] { "pwd", VolumoClaims.MultiFactor } : new[] { "pwd" },
-            },
+            Claims = claims,
         });
 
         return (token, expiresAt);

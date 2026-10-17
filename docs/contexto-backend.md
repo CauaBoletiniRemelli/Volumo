@@ -28,8 +28,8 @@ Use este arquivo junto com o `CLAUDE.md` (planejamento do produto) para retomar 
 | 0. Fundação | Estrutura src/tests, global.json, Directory.Build.props, versões centralizadas, .editorconfig | ✅ Feito |
 | 1. Proteções da API | Cabeçalhos de segurança, HSTS, CORS, rate limiting, ProblemDetails, limite de requisição, Serilog, health check | ✅ Feito |
 | 2. Domínio + persistência | Entidades, EF Core, migrations, LocalDB, IDs GUID v7 gerados no cliente (sincronização offline) | ✅ Feito (16/10) |
-| 3. Autenticação | **3.1** Identity, cadastro de personal, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo, logout, login obrigatório por padrão · **3.2** 2FA obrigatório para personal, recuperação de senha, Turnstile · **3.3** convite e cadastro de aluno, reativação de conta, suspensão | 3.1 ✅ · 3.2 ✅ Feito (16/10) · 3.3 ⏭️ **Próxima** |
-| 4. Autorização contra IDOR | Roles e policies, autorização por recurso, filtros globais do EF por dono, 404 para recurso alheio | Pendente |
+| 3. Autenticação | **3.1** Identity, cadastro de personal, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo, logout, login obrigatório por padrão · **3.2** 2FA obrigatório para personal, recuperação de senha, Turnstile · **3.3** convite e cadastro de aluno, reativação de conta, suspensão | ✅ Feito (16/10) |
+| 4. Autorização contra IDOR | Roles e policies (já feitas na fase 3), autorização por recurso, filtros globais do EF por dono, 404 para recurso alheio | ⏭️ **Próxima** |
 | 5. Funcionalidades do MVP | CRUD de templates e treinos, atribuição ao aluno, registro de sessão com idempotência, painel do personal (último treino, sumido há mais de 5 dias, estagnado) | Pendente |
 | 6. Cobrança + LGPD | Webhook do gateway com validação de assinatura e idempotência, consentimento, exportação e exclusão de conta | Pendente |
 | 7. CI/CD | GitHub Actions (build, testes, `dotnet list package --vulnerable`, CodeQL, Dependabot, OWASP ZAP) e deploy no MonsterASP.NET | Pendente |
@@ -88,7 +88,7 @@ Convenções:
 - **Saída do aluno:** aluno de personal inadimplente (após a carência) pode aceitar convite de outro personal, com o vínculo antigo encerrado automaticamente, como no caso do personal inativo. Estender `AceiteDeConvite` para considerar também a situação da assinatura.
 - Implementação provável: estado da assinatura no personal (em dia, em carência, inadimplente, rebaixado para Grátis) + policy de autorização (ex.: `PersonalPodeEditar`) nos endpoints de escrita, com teste na matriz de autorização. Rebaixamento para Grátis precisa marcar quais alunos seguem editáveis.
 
-**2. Login de contas inativas ou suspensas** — implementar na fase 3
+**2. Login de contas inativas ou suspensas** — implementado na fase 3.3 (ver "Contas, convites e suspensão")
 - Conta anonimizada: login impossível (já garantido: sem senha, sem e-mail, bloqueio permanente).
 - Conta **inativada pela própria pessoa** (aluno ou personal): o login é permitido e oferece "Reativar minha conta", mostrando o que foi preservado.
 - **Suspensão pela plataforma** (abuso, fraude, CREF falso): estado **separado** da inativação, com motivo e data, que só um Admin desfaz; a pessoa não consegue se reativar. Modelar com as roles de Admin.
@@ -123,11 +123,12 @@ Volumo.slnx
 │   │   │                                AccessTokenIssuer, RefreshTokenService, RefreshTokenCookie, AccountEmails,
 │   │   │                                PortugueseIdentityErrorDescriber
 │   │   ├── Errors/BusinessRuleExceptionHandler.cs → RegraDeNegocioException vira 400 com a mensagem do domínio
-│   │   ├── Controllers/               → AuthController (/auth/...), ContaController (/conta)
+│   │   ├── Controllers/               → AuthController (/auth), DoisFatoresController (/auth/2fa), ContaController (/conta),
+│   │   │                                ConvitesController (/convites), AdminController (/admin/usuarios)
 │   │   ├── appsettings.json
 │   │   └── appsettings.Development.json
 │   ├── Volumo.Client           → Blazor WebAssembly (ainda é o template; NÃO é PWA ainda: falta manifest/service worker)
-│   ├── Volumo.Shared           → Autenticacao/ContratosDeAutenticacao.cs (DTOs da API, com DataAnnotations)
+│   ├── Volumo.Shared           → DTOs da API com DataAnnotations: Autenticacao/, Convites/, Admin/
 │   ├── Volumo.Domain           → Comum/ (Entidade, Guarda, RegraDeNegocioException), Usuarios/, Vinculos/,
 │   │                             Exercicios/, Treinos/, Sessoes/
 │   └── Volumo.Infrastructure
@@ -139,7 +140,7 @@ Volumo.slnx
 │           ├── VolumoDbContext.cs        → IdentityDbContext + IDataProtectionKeyContext
 │           ├── VolumoDbContextFactory.cs → usada só pelo dotnet ef
 │           ├── Configuracoes/            → IEntityTypeConfiguration por entidade (+ seed dos papéis)
-│           └── Migrations/               → Inicial, InativacaoEAnonimizacao, Autenticacao
+│           └── Migrations/               → Inicial, InativacaoEAnonimizacao, Autenticacao, DoisFatores, Suspensao
 └── tests/
     ├── Directory.Build.props   → pacotes e usings comuns dos testes (xUnit v3, Shouldly, cobertura)
     ├── Volumo.Domain.Tests     → regras das entidades (sem banco)
@@ -147,7 +148,7 @@ Volumo.slnx
     └── Volumo.Architecture.Tests → regras de dependência entre camadas (NetArchTest)
 ```
 
-### Autenticação (fases 3.1 e 3.2)
+### Autenticação (fase 3)
 
 | Rota | Acesso | O que faz |
 |---|---|---|
@@ -164,7 +165,23 @@ Volumo.slnx
 | `POST /auth/2fa/codigos-de-recuperacao` | sessão com 2FA | Gera 10 códigos novos; os antigos deixam de valer |
 | `POST /auth/esqueci-senha` | anônimo, limite `cadastro`, Turnstile | Sempre 202; e-mail com link de 1 hora |
 | `POST /auth/redefinir-senha` | anônimo, limite `login` | `{usuarioId, token, novaSenha}` → 204: troca a senha, encerra **todas** as sessões, desbloqueia, confirma o e-mail se faltava e avisa por e-mail. O 2FA continua valendo |
-| `GET /conta` | login | Id, e-mail, papéis, `doisFatoresAtivo`, `precisaConfigurarDoisFatores` (personal sem 2FA) |
+| `GET /conta` | login | Id, e-mail, papéis, `doisFatoresAtivo`, `precisaConfigurarDoisFatores` (personal sem 2FA), `contaInativa` |
+| `POST /conta/inativar` | login | `{senha}` → pausa a conta (perfis inativados, nada apagado) e encerra todas as sessões |
+| `POST /conta/reativar` | login | Reativa os perfis e devolve um token de acesso novo (mantém o 2FA da sessão) |
+| `POST /auth/cadastro/aluno` | anônimo, limite `cadastro` | `{tokenConvite, nome, senha}` → conta (e-mail já confirmado) + papel Aluno + perfil + vínculo numa transação, e já abre a sessão (200). Convite inválido/usado/vencido ou personal inativo → 400; e-mail já tem conta → 409 |
+| `POST /convites` | `Personal` (com 2FA) | `{email}` → 201; envia o link por e-mail; convite pendente para o mesmo e-mail é revogado; quem já é aluno do personal → 409 |
+| `GET /convites` | `Personal` | Convites do próprio personal (até 200), com situação Pendente/Aceito/Revogado/Expirado |
+| `POST /convites/{id}/revogar` | `Personal` | 204; convite de outro personal → **404** |
+| `POST /convites/consultar` | anônimo (com o token) | `{token}` → nome do personal, e-mail, validade e `contaExistente` |
+| `POST /convites/aceitar` | `Aluno` | `{token}`: aluno que já tem conta. Convite para outro e-mail → 403; personal atual ativo → 400 ("encerre o vínculo"); personal atual inativo → troca automática |
+| `POST /admin/usuarios/{id}/suspender` | `Admin` (com 2FA) | `{motivo}` → suspende, troca o `SecurityStamp` e encerra todas as sessões; a si mesmo → 400; inexistente → 404 |
+| `POST /admin/usuarios/{id}/remover-suspensao` | `Admin` | 204 |
+
+**Contas, convites e suspensão (fase 3.3):**
+- **Conta inativa:** login permitido, mas o token leva a claim `conta_inativa`; as políticas `Personal`, `Aluno` e `Admin` recusam essa claim. Só `/conta` e `/conta/reativar` funcionam. Conta inativa = tem perfil e todos os perfis estão inativos (calculado a cada emissão de token, também na renovação).
+- **Suspensão:** `Usuario.SuspensoEm` + `MotivoDaSuspensao` (até 500 caracteres; apagado na anonimização). Login com a senha **certa** → 403 "conta suspensa"; senha errada → o 401 genérico de sempre. Renovação, segunda etapa do 2FA e `/conta` também recusam. O access token já emitido vale até vencer (até 15 min).
+- **Não existe rota para criar Admin:** dar o papel direto no banco (`AspNetUserRoles` com o papel `Admin`, Id `0199ecb0-0000-7000-8000-000000000003`) e a pessoa ativa o 2FA pela API.
+- Os links do e-mail apontam para o front: `/confirmar-email`, `/redefinir-senha` e `/aceitar-convite?token=...`.
 
 **2FA (fase 3.2):**
 - **Obrigatório para personal** pela política `Policies.Personal` (papel Personal **e** claim `amr` com `mfa`). Personal sem 2FA consegue entrar (amr só `pwd`), mas toda rota de personal responde 403; o `/conta` avisa `precisaConfigurarDoisFatores` para o app levar à configuração. Outras políticas: `Aluno`, `Admin` (com 2FA) e `MultiFactor`.
@@ -255,7 +272,7 @@ Outros ajustes:
 
 Rodar tudo: **`dotnet test --solution Volumo.slnx`** (o `--solution` é necessário com o executor novo).
 
-Situação atual: **201 testes, todos passando** (~12 s). Precisa do LocalDB instalado.
+Situação atual: **226 testes, todos passando** (~15 s). Precisa do LocalDB instalado.
 
 ### Volumo.Domain.Tests
 - Uma classe por entidade/área (`PerfisTests`, `ConviteAlunoTests`, `VinculoPersonalAlunoTests`, `ExercicioTests`, `SerieTests`, `TreinoTests`, `SessaoTreinoTests`).
@@ -274,7 +291,9 @@ Situação atual: **201 testes, todos passando** (~12 s). Precisa do LocalDB ins
   - Configura JWT com chave só de teste, `Front:BaseUrl`, limites altos de login/cadastro e troca o envio de e-mail por `Support/CaixaDeEmails` (`factory.Emails`), de onde os testes tiram os links.
   - `CreateHttpsClient(handleCookies: false)` para enviar o cookie do refresh token manualmente.
 - `Support/ContasDeTeste`: cadastrar, confirmar, entrar, renovar e sair pela API, como o app faria.
-- `Auth/`: `CadastroTests`, `LoginTests` (resposta igual para e-mail inexistente e senha errada, bloqueio, cookie protegido, limite de tentativas), `SessaoTests` (rotação, reuso derruba a família, logout por dispositivo, token vencido, exclusão de conta), `TokenDeAcessoTests` (sem token, adulterado, outra chave, vencido, `alg: none`), `DoisFatoresTests` (personal sem 2FA barrado, ativação troca a sessão, desafio, código errado/adulterado, bloqueio, códigos de recuperação), `RecuperacaoDeSenhaTests` (sempre 202, link de uso único, sessões derrubadas, desbloqueio, 2FA continua valendo), `TurnstileTests` (formulários barrados; verificador testado com `HttpMessageHandler` falso, sem rede).
+- `Auth/`: `CadastroTests`, `LoginTests` (resposta igual para e-mail inexistente e senha errada, bloqueio, cookie protegido, limite de tentativas), `SessaoTests` (rotação, reuso derruba a família, logout por dispositivo, token vencido, exclusão de conta), `TokenDeAcessoTests` (sem token, adulterado, outra chave, vencido, `alg: none`), `DoisFatoresTests` (personal sem 2FA barrado, ativação troca a sessão, desafio, código errado/adulterado, bloqueio, códigos de recuperação), `RecuperacaoDeSenhaTests` (sempre 202, link de uso único, sessões derrubadas, desbloqueio, 2FA continua valendo), `TurnstileTests` (formulários barrados; verificador testado com `HttpMessageHandler` falso, sem rede), `ContaInativaESuspensaTests` (inativar com senha, conta inativa só reativa, suspensão e matriz do admin).
+- `Convites/`: `ConvitesTests` (envio, listagem só do dono, reenvio invalida o link anterior, revogação, **matriz 401/403/404**, consulta, hash no banco) e `AceiteDeConviteTests` (cadastro pelo convite, uso único, vencido, senha fraca não consome, e-mail com conta → 409, personal inativo, troca de personal, personal ativo bloqueia, e-mail diferente → 403).
+- `Support/ContasDeTeste` também cria personal com 2FA, aluno via convite e admin (`TornarAdminAsync`).
 - `Jornadas/JornadaDoPersonalTests`: cadastro → confirmação → login → rota protegida → renovação → logout; e personal configurando o 2FA e entrando com o código.
 - `Support/Totp`: gera códigos TOTP como um aplicativo autenticador. `Support/VerificacaoHumanaFalsa`: substitui o Turnstile (`TokenAprovado`/`TokenReprovado`). `Support/TestPoliciesController`: rota `/__test/politicas/personal` para testar a política de personal.
 - `Support/TestOnlyController`: rota `/__test/throw` (`[AllowAnonymous]`), que só existe no assembly de testes e serve para testar o tratamento de exceções.
@@ -315,9 +334,9 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 - Migrations em produção via `dotnet ef migrations script --idempotent`, nunca aplicadas automaticamente na inicialização. Assim o usuário do banco da aplicação não precisa de permissão para alterar tabelas.
 - Se houver Cloudflare ou outro proxy na frente, ajustar o IP do rate limiting (Forwarded Headers), senão todos os usuários caem no mesmo limite.
 
-### Para as fases 3.2 e 3.3
-- Rotas de personal criadas na fase 5 **precisam** usar `[Authorize(Policy = Policies.Personal)]` (o 2FA obrigatório depende disso) e entrar na matriz de testes 401/403/404.
-- **3.3:** cadastro de aluno pelo convite (o e-mail vem do convite, então já confere), aceite por aluno existente com `AceiteDeConvite` (conferir e-mail da conta = e-mail do convite), papel Aluno; login de conta inativada oferece reativação; suspensão pela plataforma (estado separado, só Admin desfaz).
+### Lembretes da autenticação
+- Rotas de personal **precisam** usar `[Authorize(Policy = Policies.Personal)]` (2FA obrigatório e conta ativa dependem disso); de aluno, `Policies.Aluno`. Toda rota nova entra na matriz de testes 401/403/404.
+- Rota para o aluno **encerrar o vínculo** com o personal (hoje só existe a troca automática quando o personal está inativo).
 - Escolher o **provedor de e-mail** de produção antes do primeiro deploy.
 - Limpeza periódica de refresh tokens vencidos/revogados (tabela cresce a cada renovação).
 
@@ -329,9 +348,7 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
   - **Vídeo de execução:** URL do vídeo (storage com URL assinada ou plataforma externa) no exercício do catálogo; personal pode ter vídeo próprio nos exercícios personalizados.
   - **Substituição por aparelho indisponível:** o exercício precisa de **equipamento** (máquina, halteres, barra, polia, peso corporal...), **padrão de movimento** (empurrar horizontal, agachar...) e uma relação de **variações livres** e **similares**. Na sessão, o `RegistroSerie` passa a guardar o exercício executado e o prescrito originalmente, para o personal ver a troca. É a mesma base do "modo academia lotada".
 - Limite de alunos por plano (Grátis: 3) ao aceitar convite.
-- Login (fase 3): regras de conta inativa/suspensa da seção "Decisões de produto sobre contas", item 2.
-- Aceite de convite (fase 3/5) via `AceiteDeConvite.Aceitar`.
-- Inadimplência (fase 6): item 1b da mesma seção.
+- Inadimplência (fase 6): item 1b da seção "Decisões de produto sobre contas".
 - Endpoint de exclusão de conta (fase 6) chama `ExclusaoDeConta`, com reautenticação antes.
 
 ### Outras
@@ -345,4 +362,8 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 
 ## 7. Próximo passo
 
-**Fase 3.3: convite e cadastro de aluno, reativação de conta e suspensão** (detalhes em "Para as fases 3.2 e 3.3", acima). Depois, fase 4 (autorização contra IDOR).
+**Fase 4: autorização contra IDOR**
+1. Filtros globais do EF por dono (filtro nomeado separado do `Ativos`): personal enxerga só os próprios templates, exercícios personalizados, convites e os alunos com vínculo ativo; aluno enxerga só os próprios treinos e sessões.
+2. Serviço de "contexto do usuário" (Id e papel da requisição) usado pelos filtros.
+3. Padrão de rota: recurso de outro dono → 404; teste da matriz 401/403/404 para cada rota.
+4. Teste de arquitetura: todo controller (fora `/auth`) declara uma política explícita.

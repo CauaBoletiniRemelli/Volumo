@@ -72,7 +72,13 @@ public sealed class ConviteAluno : Entidade
         return SHA256.HashData(tokenBytes);
     }
 
-    public bool PodeSerAceito(DateTimeOffset agora) => AceitoEm is null && RevogadoEm is null && agora < ExpiraEm;
+    public bool PodeSerAceito(DateTimeOffset agora) => SituacaoEm(agora) == SituacaoDoConvite.Pendente;
+
+    public SituacaoDoConvite SituacaoEm(DateTimeOffset agora) =>
+        AceitoEm is not null ? SituacaoDoConvite.Aceito
+        : RevogadoEm is not null ? SituacaoDoConvite.Revogado
+        : agora >= ExpiraEm ? SituacaoDoConvite.Expirado
+        : SituacaoDoConvite.Pendente;
 
     /// <summary>Aceita o convite e devolve o vínculo do aluno com o personal.</summary>
     public VinculoPersonalAluno Aceitar(string token, Guid alunoId, DateTimeOffset agora)

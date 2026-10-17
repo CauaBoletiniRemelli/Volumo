@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Volumo.Api.Auth;
 using Volumo.Shared.Autenticacao;
 
@@ -64,6 +66,50 @@ internal static class ContasDeTeste
         ativacao.StatusCode.ShouldBe(HttpStatusCode.OK);
         var resposta = await ativacao.Content.ReadFromJsonAsync<RespostaDeAtivacaoDeDoisFatores>(Ct);
         return (configuracao.Chave, resposta!.CodigosDeRecuperacao, resposta.Sessao.TokenDeAcesso!, CookieDeAtualizacao(ativacao)!);
+    }
+
+    /// <summary>Personal cadastrado, confirmado e com 2FA ativo; devolve a chave do autenticador e um token com 2FA.</summary>
+    public static async Task<(string Email, string Chave, string TokenDeAcesso)> PersonalComDoisFatoresAsync(HttpClient client, VolumoApiFactory factory)
+    {
+        var email = await PersonalConfirmadoAsync(client, factory);
+        var (token, _) = await EntrarAsync(client, email);
+        var (chave, _, tokenComDoisFatores, _) = await AtivarDoisFatoresAsync(client, token);
+        return (email, chave, tokenComDoisFatores);
+    }
+
+    public static Task<HttpResponseMessage> ConvidarAsync(HttpClient client, string tokenDoPersonal, string emailDoAluno) =>
+        EnviarAsync(client, HttpMethod.Post, "/convites", tokenDoPersonal, corpo: new Volumo.Shared.Convites.NovoConvite(emailDoAluno));
+
+    public static Task<HttpResponseMessage> CadastrarAlunoAsync(HttpClient client, string tokenDoConvite, string senha = SenhaValida) =>
+        client.PostAsJsonAsync("/auth/cadastro/aluno", new CadastroDeAluno(tokenDoConvite, "Aluno de Teste", senha), Ct);
+
+    /// <summary>Personal com 2FA convida e o aluno se cadastra pelo link. Devolve os dois.</summary>
+    public static async Task<(string EmailAluno, string TokenAluno, string EmailPersonal, string TokenPersonal)> AlunoViaConviteAsync(
+        HttpClient client, VolumoApiFactory factory)
+    {
+        var (emailPersonal, _, tokenPersonal) = await PersonalComDoisFatoresAsync(client, factory);
+        var emailAluno = NovoEmail("aluno");
+        (await ConvidarAsync(client, tokenPersonal, emailAluno)).StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        using var cadastro = await CadastrarAlunoAsync(client, factory.Emails.TokenDoConvite(emailAluno));
+        cadastro.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var sessao = await cadastro.Content.ReadFromJsonAsync<RespostaDeLogin>(Ct);
+        return (emailAluno, sessao!.TokenDeAcesso!, emailPersonal, tokenPersonal);
+    }
+
+    /// <summary>Dá o papel Admin à conta (não há rota para isso: é feito direto na plataforma).</summary>
+    public static async Task TornarAdminAsync(VolumoApiFactory factory, string email)
+    {
+        using var escopo = factory.Services.CreateScope();
+        var userManager = escopo.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Volumo.Infrastructure.Identity.Usuario>>();
+        var usuario = await userManager.FindByEmailAsync(email);
+        (await userManager.AddToRoleAsync(usuario!, Volumo.Domain.Usuarios.Papeis.Admin)).Succeeded.ShouldBeTrue();
+    }
+
+    public static async Task<Guid> IdDoUsuarioAsync(string email)
+    {
+        await using var db = BancoDeTestes.NovoContexto();
+        return await db.Users.Where(u => u.NormalizedEmail == email.ToUpperInvariant()).Select(u => u.Id).SingleAsync(Ct);
     }
 
     /// <summary>Requisição com token de acesso e/ou cookie do refresh token explícitos.</summary>

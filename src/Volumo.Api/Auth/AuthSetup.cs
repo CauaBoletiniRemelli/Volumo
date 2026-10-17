@@ -79,11 +79,15 @@ public static class AuthSetup
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
             .AddPolicy(Policies.Personal, policy => policy
                 .RequireRole(Papeis.Personal)
-                .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor))
-            .AddPolicy(Policies.Aluno, policy => policy.RequireRole(Papeis.Aluno))
+                .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor)
+                .RequireAssertion(ActiveAccount))
+            .AddPolicy(Policies.Aluno, policy => policy
+                .RequireRole(Papeis.Aluno)
+                .RequireAssertion(ActiveAccount))
             .AddPolicy(Policies.Admin, policy => policy
                 .RequireRole(Papeis.Admin)
-                .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor))
+                .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor)
+                .RequireAssertion(ActiveAccount))
             .AddPolicy(Policies.MultiFactor, policy => policy
                 .RequireAuthenticatedUser()
                 .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor));
@@ -99,6 +103,9 @@ public static class AuthSetup
         services.AddVolumoEmail(configuration, environment);
         return services;
     }
+
+    private static bool ActiveAccount(AuthorizationHandlerContext context) =>
+        !context.User.HasClaim(c => c.Type == VolumoClaims.InactiveAccount);
 
     private static void AddVolumoEmail(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {

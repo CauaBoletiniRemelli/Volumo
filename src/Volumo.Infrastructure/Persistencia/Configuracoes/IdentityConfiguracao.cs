@@ -28,6 +28,12 @@ internal sealed class PapeisConfiguracao : IEntityTypeConfiguration<IdentityRole
     };
 }
 
+internal sealed class UsuarioConfiguracao : IEntityTypeConfiguration<Usuario>
+{
+    public void Configure(EntityTypeBuilder<Usuario> builder) =>
+        builder.Property(u => u.MotivoDaSuspensao).HasMaxLength(Usuario.MotivoDaSuspensaoMaximo);
+}
+
 internal sealed class TokenDeAtualizacaoConfiguracao : IEntityTypeConfiguration<TokenDeAtualizacao>
 {
     public void Configure(EntityTypeBuilder<TokenDeAtualizacao> builder)

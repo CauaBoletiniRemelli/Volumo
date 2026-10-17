@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Volumo.Api.Auth;
 using Volumo.Api.Security;
 using Volumo.Domain.Usuarios;
+using Volumo.Domain.Vinculos;
 using Volumo.Infrastructure.Identity;
 using Volumo.Infrastructure.Persistencia;
 using Volumo.Shared.Autenticacao;
@@ -22,7 +23,8 @@ public sealed class AuthController(
     SessionIssuer sessions,
     RefreshTokenService refreshTokens,
     TwoFactorChallenge challenges,
-    AccountEmails emails) : ControllerBase
+    AccountEmails emails,
+    TimeProvider clock) : ControllerBase
 {
     // Hash de uma senha qualquer: no login com e-mail inexistente a API verifica a senha contra ele,
     // para levar o mesmo tempo que um login real e não revelar quais e-mails têm conta.
@@ -89,6 +91,61 @@ public sealed class AuthController(
         return Accepted();
     }
 
+    /// <summary>
+    /// Cadastro de aluno pelo link do convite: cria a conta (já com e-mail confirmado, porque o link
+    /// chegou nele), o perfil e o vínculo com o personal numa transação, e já abre a sessão.
+    /// </summary>
+    [HttpPost("cadastro/aluno")]
+    [EnableRateLimiting(RateLimitPolicies.Cadastro)]
+    public async Task<ActionResult<RespostaDeLogin>> RegisterStudent(CadastroDeAluno request, CancellationToken ct)
+    {
+        var convite = await FindInviteAsync(request.TokenConvite, ct);
+        var now = clock.GetUtcNow();
+        if (convite is null || !convite.PodeSerAceito(now) || !await InvitingPersonalIsActiveAsync(convite.PersonalId, ct))
+        {
+            return InvalidInvite();
+        }
+
+        var usuario = new Usuario { UserName = convite.Email, Email = convite.Email, EmailConfirmed = true };
+        await AddPasswordErrorsAsync(usuario, request.Senha, nameof(request.Senha));
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        // Quem tem o link é o dono do e-mail, então dizer que a conta existe não revela nada a estranhos.
+        if (await userManager.FindByEmailAsync(convite.Email) is not null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Já existe uma conta com este e-mail.",
+                detail: "Entre na sua conta para aceitar o convite.");
+        }
+
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
+        {
+            var created = await userManager.CreateAsync(usuario, request.Senha);
+            if (!created.Succeeded)
+            {
+                return IdentityProblem(created);
+            }
+
+            var roleAdded = await userManager.AddToRoleAsync(usuario, Papeis.Aluno);
+            if (!roleAdded.Succeeded)
+            {
+                throw new InvalidOperationException("Não foi possível atribuir o papel Aluno: " + string.Join("; ", roleAdded.Errors.Select(e => e.Code)));
+            }
+
+            var aluno = PerfilAluno.Criar(usuario.Id, request.Nome);
+            db.PerfisAluno.Add(aluno);
+            db.VinculosPersonalAluno.Add(AceiteDeConvite.Aceitar(convite, request.TokenConvite, aluno, null, null, now));
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+
+        return await sessions.StartAsync(Response, usuario, comDoisFatores: false, ct);
+    }
+
     [HttpPost("confirmar-email")]
     public async Task<IActionResult> ConfirmEmail(ConfirmacaoDeEmail request)
     {
@@ -147,6 +204,12 @@ public sealed class AuthController(
         {
             await userManager.AccessFailedAsync(usuario);
             return InvalidCredentials();
+        }
+
+        // Só quem acertou a senha fica sabendo da suspensão (para estranhos, a resposta é a de sempre).
+        if (usuario.Suspenso)
+        {
+            return Suspended();
         }
 
         // Com 2FA, a contagem de erros só zera depois do código certo: senha certa + código chutado
@@ -228,14 +291,14 @@ public sealed class AuthController(
         // Bloqueio temporário por senha errada não derruba sessões já abertas (senão um atacante
         // poderia deslogar alguém só errando a senha dele); conta excluída derruba.
         var usuario = await userManager.FindByIdAsync(rotated.UsuarioId.ToString());
-        if (usuario is null || usuario.AnonimizadoEm is not null || !usuario.EmailConfirmed)
+        if (usuario is null || usuario.AnonimizadoEm is not null || usuario.Suspenso || !usuario.EmailConfirmed)
         {
             await refreshTokens.RevokeFamilyAsync(rotated.FamiliaId, ct);
             return SessionExpired();
         }
 
         RefreshTokenCookie.Write(Response, rotated.NewToken, rotated.ExpiresAt);
-        return await sessions.AccessTokenAsync(usuario, rotated.ComDoisFatores);
+        return await sessions.AccessTokenAsync(usuario, rotated.ComDoisFatores, ct);
     }
 
     /// <summary>Encerra a sessão deste dispositivo. Funciona mesmo com o token de acesso vencido.</summary>
@@ -312,11 +375,23 @@ public sealed class AuthController(
         }
 
         var usuario = await userManager.FindByIdAsync(dados.UsuarioId.ToString());
-        var valid = usuario is { TwoFactorEnabled: true, EmailConfirmed: true, AnonimizadoEm: null }
+        var valid = usuario is { TwoFactorEnabled: true, EmailConfirmed: true, AnonimizadoEm: null, Suspenso: false }
             && usuario.SecurityStamp == dados.SecurityStamp
             && !await userManager.IsLockedOutAsync(usuario);
         return valid ? usuario : null;
     }
+
+    private Task<ConviteAluno?> FindInviteAsync(string token, CancellationToken ct)
+    {
+        var hash = ConviteAluno.CalcularHash(token);
+        return hash is null ? Task.FromResult<ConviteAluno?>(null) : db.ConvitesAluno.SingleOrDefaultAsync(c => c.TokenHash == hash, ct);
+    }
+
+    private Task<bool> InvitingPersonalIsActiveAsync(Guid personalId, CancellationToken ct) =>
+        db.PerfisPersonal.AnyAsync(p => p.Id == personalId, ct); // o filtro global já esconde inativos
+
+    private ObjectResult InvalidInvite() =>
+        Problem(statusCode: StatusCodes.Status400BadRequest, title: "Convite inválido, expirado ou já usado.");
 
     private async Task AddPasswordErrorsAsync(Usuario usuario, string password, string field)
     {
@@ -350,6 +425,11 @@ public sealed class AuthController(
             statusCode: StatusCodes.Status403Forbidden,
             title: "Confirme seu e-mail antes de entrar.",
             detail: "Enviamos um link de confirmação quando você se cadastrou. Você pode pedir um novo.");
+
+    private ObjectResult Suspended() => Problem(
+        statusCode: StatusCodes.Status403Forbidden,
+        title: "Esta conta está suspensa.",
+        detail: "Fale com o suporte do Volumo para saber mais.");
 
     private ObjectResult InvalidCredentials() => Problem(
         statusCode: StatusCodes.Status401Unauthorized,

@@ -144,6 +144,21 @@ public sealed class ConviteAlunoTests
     }
 
     [Fact]
+    public void Situacao_acompanha_o_ciclo_de_vida_do_convite()
+    {
+        var (pendente, _) = Criar();
+        var (aceito, token) = Criar();
+        aceito.Aceitar(token, _alunoId, Dados.Agora);
+        var (revogado, _) = Criar();
+        revogado.Revogar(Dados.Agora);
+
+        pendente.SituacaoEm(Dados.Agora).ShouldBe(SituacaoDoConvite.Pendente);
+        pendente.SituacaoEm(pendente.ExpiraEm).ShouldBe(SituacaoDoConvite.Expirado);
+        aceito.SituacaoEm(aceito.ExpiraEm.AddDays(30)).ShouldBe(SituacaoDoConvite.Aceito);
+        revogado.SituacaoEm(Dados.Agora).ShouldBe(SituacaoDoConvite.Revogado);
+    }
+
+    [Fact]
     public void Hash_de_token_mal_formado_e_nulo()
     {
         ConviteAluno.CalcularHash(null).ShouldBeNull();

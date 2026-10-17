@@ -12,4 +12,8 @@ public sealed class TestPoliciesController : ControllerBase
     [HttpGet("personal")]
     [Authorize(Policy = Policies.Personal)]
     public IActionResult Personal() => Ok();
+
+    [HttpGet("aluno")]
+    [Authorize(Policy = Policies.Aluno)]
+    public IActionResult Aluno() => Ok();
 }

@@ -11,6 +11,7 @@ public sealed class AccountEmails(UserManager<Usuario> userManager, IEnvioDeEmai
 {
     public const string ConfirmEmailPath = "/confirmar-email";
     public const string ResetPasswordPath = "/redefinir-senha";
+    public const string AcceptInvitePath = "/aceitar-convite";
 
     public async Task SendConfirmationAsync(Usuario usuario, CancellationToken ct)
     {
@@ -69,6 +70,19 @@ public sealed class AccountEmails(UserManager<Usuario> userManager, IEnvioDeEmai
                 "A senha da sua conta acabou de ser redefinida e todas as sessões abertas foram encerradas.\n\n"
                 + "Se não foi você, redefina a senha de novo imediatamente e fale com o suporte."),
             ct);
+
+    /// <summary>Convite do personal. O token vai só no link; o banco guarda o hash.</summary>
+    public Task SendInviteAsync(string para, string nomeDoPersonal, string token, DateTimeOffset expiraEm, CancellationToken ct)
+    {
+        var link = front.Link(AcceptInvitePath, new Dictionary<string, string> { ["token"] = token });
+        return email.EnviarAsync(
+            new MensagemDeEmail(
+                para,
+                $"{nomeDoPersonal} convidou você para treinar no Volumo",
+                $"{nomeDoPersonal} vai montar seus treinos pelo Volumo. Para aceitar, abra o link abaixo "
+                + $"(vale até {expiraEm:dd/MM/yyyy}):\n\n{link}\n\nSe você não conhece essa pessoa, ignore este e-mail."),
+            ct);
+    }
 
     /// <summary>Tokens do Identity têm caracteres que quebram URLs; vão em Base64Url.</summary>
     public static string EncodeToken(string token) => WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));

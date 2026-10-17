@@ -537,6 +537,10 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("MotivoDaSuspensao")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -556,6 +560,9 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("SuspensoEm")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
