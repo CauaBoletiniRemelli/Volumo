@@ -35,6 +35,13 @@ public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
         db.UserTokens.RemoveRange(await db.UserTokens.Where(t => t.UserId == usuarioId).ToListAsync(ct));
         db.UserClaims.RemoveRange(await db.UserClaims.Where(c => c.UserId == usuarioId).ToListAsync(ct));
         db.UserRoles.RemoveRange(await db.UserRoles.Where(r => r.UserId == usuarioId).ToListAsync(ct));
+
+        // Derruba todas as sessões abertas (refresh tokens); o access token vence em minutos.
+        var agora = relogio.GetUtcNow();
+        foreach (var token in await db.TokensDeAtualizacao.Where(t => t.UsuarioId == usuarioId && t.RevogadoEm == null).ToListAsync(ct))
+        {
+            token.Revogar(agora);
+        }
     }
 
     private async Task AnonimizarPersonalAsync(Guid personalId, DateTimeOffset agora, CancellationToken ct)

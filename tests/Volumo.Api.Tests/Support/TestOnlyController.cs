@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Volumo.Api.Tests.Support;
 
 /// <summary>Rotas que só existem nos testes, para exercitar o pipeline da API.</summary>
 [ApiController]
+[AllowAnonymous]
 [Route("__test")]
 public sealed class TestOnlyController : ControllerBase
 {

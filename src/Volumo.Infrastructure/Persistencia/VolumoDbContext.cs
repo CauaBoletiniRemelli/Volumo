@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -12,12 +13,13 @@ using Volumo.Infrastructure.Identity;
 namespace Volumo.Infrastructure.Persistencia;
 
 public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options)
-    : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>(options)
+    : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>(options), IDataProtectionKeyContext
 {
     /// <summary>
     /// Únicos tipos que podem ser apagados de verdade: credenciais auxiliares do Identity
-    /// (removidas na anonimização da conta). Tipos owned (itens e séries de treino) também podem,
-    /// porque são partes de um treino sendo editado.
+    /// (removidas na anonimização da conta), refresh tokens e chaves do Data Protection (limpeza
+    /// de registros vencidos). Tipos owned (itens e séries de treino) também podem, porque são
+    /// partes de um treino sendo editado.
     /// </summary>
     private static readonly HashSet<Type> TiposQuePodemSerApagados =
     [
@@ -26,7 +28,14 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options)
         typeof(IdentityUserClaim<Guid>),
         typeof(IdentityUserRole<Guid>),
         typeof(IdentityRoleClaim<Guid>),
+        typeof(TokenDeAtualizacao),
+        typeof(DataProtectionKey),
     ];
+
+    /// <summary>Chaves do ASP.NET Core Data Protection (tokens de confirmação de e-mail etc.).</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
+    public DbSet<TokenDeAtualizacao> TokensDeAtualizacao => Set<TokenDeAtualizacao>();
 
     public DbSet<PerfilPersonal> PerfisPersonal => Set<PerfilPersonal>();
 

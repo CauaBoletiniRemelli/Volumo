@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Serilog;
+using Volumo.Api.Auth;
+using Volumo.Api.Errors;
 using Volumo.Api.Security;
 using Volumo.Infrastructure;
 using Volumo.Infrastructure.Persistencia;
@@ -23,6 +25,7 @@ builder.Services.Configure<IISServerOptions>(options => options.MaxRequestBodySi
 
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
     context.ProblemDetails.Extensions["traceId"] = Activity.Current?.Id ?? context.HttpContext.TraceIdentifier);
+builder.Services.AddExceptionHandler<BusinessRuleExceptionHandler>();
 
 builder.Services.AddHsts(options =>
 {
@@ -33,6 +36,7 @@ builder.Services.AddHsts(options =>
 builder.Services.AddVolumoCors(builder.Configuration);
 builder.Services.AddVolumoRateLimiting(builder.Configuration);
 builder.Services.AddVolumoInfrastructure(builder.Configuration.GetConnectionString(DependencyInjection.ConnectionStringName));
+builder.Services.AddVolumoAuth(builder.Configuration, builder.Environment);
 builder.Services.AddHealthChecks().AddDbContextCheck<VolumoDbContext>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -52,14 +56,15 @@ app.UseHttpsRedirection();
 app.UseSerilogRequestLogging();
 app.UseCors();
 app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();

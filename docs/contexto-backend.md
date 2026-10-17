@@ -28,7 +28,7 @@ Use este arquivo junto com o `CLAUDE.md` (planejamento do produto) para retomar 
 | 0. Fundação | Estrutura src/tests, global.json, Directory.Build.props, versões centralizadas, .editorconfig | ✅ Feito |
 | 1. Proteções da API | Cabeçalhos de segurança, HSTS, CORS, rate limiting, ProblemDetails, limite de requisição, Serilog, health check | ✅ Feito |
 | 2. Domínio + persistência | Entidades, EF Core, migrations, LocalDB, IDs GUID v7 gerados no cliente (sincronização offline) | ✅ Feito (16/10) |
-| 3. Autenticação | Identity, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo (hash no banco, revogação da sessão se um token antigo for reutilizado, cookie HttpOnly/Secure/SameSite=Strict), 2FA obrigatório para personal, Turnstile, convite de aluno | ⏭️ **Próxima** |
+| 3. Autenticação | **3.1** Identity, cadastro de personal, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo, logout, login obrigatório por padrão · **3.2** 2FA obrigatório para personal, recuperação de senha, Turnstile · **3.3** convite e cadastro de aluno, reativação de conta, suspensão | 3.1 ✅ Feito (16/10) · 3.2 ⏭️ **Próxima** · 3.3 Pendente |
 | 4. Autorização contra IDOR | Roles e policies, autorização por recurso, filtros globais do EF por dono, 404 para recurso alheio | Pendente |
 | 5. Funcionalidades do MVP | CRUD de templates e treinos, atribuição ao aluno, registro de sessão com idempotência, painel do personal (último treino, sumido há mais de 5 dias, estagnado) | Pendente |
 | 6. Cobrança + LGPD | Webhook do gateway com validação de assinatura e idempotência, consentimento, exportação e exclusão de conta | Pendente |
@@ -119,27 +119,57 @@ Volumo.slnx
 │   │   │   ├── SecurityHeadersMiddleware.cs
 │   │   │   ├── CorsSetup.cs
 │   │   │   └── RateLimitingSetup.cs   (RateLimitPolicies.Login / .Cadastro)
+│   │   ├── Auth/                      → AuthSetup (Identity + JWT + política padrão), JwtSettings, FrontSettings,
+│   │   │                                AccessTokenIssuer, RefreshTokenService, RefreshTokenCookie, AccountEmails,
+│   │   │                                PortugueseIdentityErrorDescriber
+│   │   ├── Errors/BusinessRuleExceptionHandler.cs → RegraDeNegocioException vira 400 com a mensagem do domínio
+│   │   ├── Controllers/               → AuthController (/auth/...), ContaController (/conta)
 │   │   ├── appsettings.json
 │   │   └── appsettings.Development.json
 │   ├── Volumo.Client           → Blazor WebAssembly (ainda é o template; NÃO é PWA ainda: falta manifest/service worker)
-│   ├── Volumo.Shared           → vazio (só AssemblyReference); DTOs entram na fase 5
+│   ├── Volumo.Shared           → Autenticacao/ContratosDeAutenticacao.cs (DTOs da API, com DataAnnotations)
 │   ├── Volumo.Domain           → Comum/ (Entidade, Guarda, RegraDeNegocioException), Usuarios/, Vinculos/,
 │   │                             Exercicios/, Treinos/, Sessoes/
 │   └── Volumo.Infrastructure
 │       ├── DependencyInjection.cs        → AddVolumoInfrastructure(connectionString)
-│       ├── Identity/Usuario.cs
+│       ├── Identity/                     → Usuario, TokenDeAtualizacao (refresh token)
+│       ├── Email/                        → IEnvioDeEmail, EmailEmArquivo (só desenvolvimento)
+│       ├── Contas/ExclusaoDeConta.cs     → anonimização da conta (LGPD)
 │       └── Persistencia/
-│           ├── VolumoDbContext.cs        → IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
+│           ├── VolumoDbContext.cs        → IdentityDbContext + IDataProtectionKeyContext
 │           ├── VolumoDbContextFactory.cs → usada só pelo dotnet ef
-│           ├── Configuracoes/            → IEntityTypeConfiguration por entidade
-│           └── Migrations/               → Inicial, InativacaoEAnonimizacao
-│       └── Contas/ExclusaoDeConta.cs     → anonimização da conta (LGPD)
+│           ├── Configuracoes/            → IEntityTypeConfiguration por entidade (+ seed dos papéis)
+│           └── Migrations/               → Inicial, InativacaoEAnonimizacao, Autenticacao
 └── tests/
     ├── Directory.Build.props   → pacotes e usings comuns dos testes (xUnit v3, Shouldly, cobertura)
     ├── Volumo.Domain.Tests     → regras das entidades (sem banco)
-    ├── Volumo.Api.Tests        → testes de integração (WebApplicationFactory + LocalDB)
+    ├── Volumo.Api.Tests        → integração (WebApplicationFactory + LocalDB) e jornadas completas (Jornadas/)
     └── Volumo.Architecture.Tests → regras de dependência entre camadas (NetArchTest)
 ```
+
+### Autenticação (fase 3.1)
+
+| Rota | Acesso | O que faz |
+|---|---|---|
+| `POST /auth/cadastro/personal` | anônimo, limite `cadastro` | Cria conta + papel Personal + perfil numa transação e envia o link de confirmação. **Sempre 202**, inclusive para e-mail já cadastrado (o dono recebe um aviso); senha fraca → 400; CREF inválido → 400; CREF em uso → 409 |
+| `POST /auth/confirmar-email` | anônimo | `{usuarioId, token}` do link → 204; link inválido → 400 |
+| `POST /auth/reenviar-confirmacao` | anônimo, limite `cadastro` | Sempre 202 |
+| `POST /auth/login` | anônimo, limite `login` | 200 `{tokenDeAcesso, expiraEm}` + cookie do refresh token; e-mail inexistente e senha errada → **mesmo 401**; e-mail não confirmado (senha certa) → 403 |
+| `POST /auth/refresh` | cookie | Rotaciona o refresh token e devolve novo token de acesso; falha → 401 e apaga o cookie |
+| `POST /auth/logout` | cookie | Revoga a família do token (só aquele dispositivo) e apaga o cookie → 204 |
+| `GET /conta` | login | Id, e-mail e papéis |
+
+Decisões e detalhes:
+- **Política padrão:** toda rota exige login; rotas públicas usam `[AllowAnonymous]` (`/auth/*`, `/health`, OpenAPI em dev). Vale também para rotas inexistentes: anônimo recebe **401** (não revela quais rotas existem); logado recebe 404.
+- **Senha:** mínimo 10 caracteres e 4 diferentes, sem regras de composição (NIST SP 800-63B); máximo 128. Bloqueio de 15 min após 5 erros. Mensagens do Identity em português.
+- **Token de acesso:** JWT HS256, 15 min, claims `sub`, `role`, `jti`, `amr=["pwd"]` (sem dados pessoais). Validação com emissor, audiência, algoritmo fixo (recusa `alg: none`) e tolerância de 30 s. `MapInboundClaims = false`.
+- **Refresh token:** 32 bytes aleatórios, só o SHA-256 no banco (`TokensDeAtualizacao`), 30 dias renovados a cada uso. Cada login abre uma família; cada renovação marca o token como usado (`ExecuteUpdate` condicional: de duas renovações simultâneas, só uma vence). **Token já usado ou revogado → família inteira revogada.** Sem período de tolerância: o front precisa serializar as renovações entre abas.
+- **Cookie:** `__Secure-volumo-rt`, HttpOnly, Secure, SameSite=Strict, `Path=/auth`, sem `Domain`.
+- **Bloqueio temporário não derruba sessões abertas** (senão um atacante deslogaria alguém só errando a senha); conta excluída derruba (`ExclusaoDeConta` revoga todos os refresh tokens).
+- **Login com e-mail inexistente** verifica a senha contra um hash fictício, para levar o mesmo tempo que um login real.
+- **Data Protection:** chaves na tabela `DataProtectionKeys` (tokens de confirmação de e-mail sobrevivem a reinícios). As chaves ficam sem criptografia em repouso; avaliar proteção extra (certificado) no deploy.
+- **E-mail:** `Email:Provider=File` grava os e-mails em `%TEMP%/volumo-emails` (só desenvolvimento; proibido em produção). **Provedor de produção ainda não escolhido.**
+- **Jornadas E2E** ficaram em `Volumo.Api.Tests/Jornadas/` (mesma fábrica e banco), em vez de um projeto separado. Um projeto `Volumo.E2E.Tests` faz sentido quando houver ambiente publicado ou Playwright.
 
 ### Banco de dados
 - Development: LocalDB, banco `Volumo` (connection string em `appsettings.Development.json`; não é segredo, usa autenticação do Windows).
@@ -175,7 +205,7 @@ Ordem do pipeline em `Program.cs`:
    - `login`: 5 por minuto.
    - `cadastro`: 3 a cada 10 minutos.
    - Excesso → 429 com `Retry-After` em ProblemDetails.
-8. `UseAuthorization` → `/health` e Controllers.
+8. `UseAuthentication` (JWT) → `UseAuthorization` (política padrão: login obrigatório) → `/health` (público) e Controllers.
 
 `/health` inclui o banco (`AddDbContextCheck`): 200 `Healthy` ou 503 `Unhealthy`, sem detalhes.
 
@@ -188,7 +218,12 @@ Outros ajustes:
 - `Serilog:MinimumLevel`
 - `Cors:AllowedOrigins`: vazio em produção. Em Development: `https://localhost:7184` e `http://localhost:5140` (portas do Client).
 - `RateLimiting:Global|Login|Cadastro` (`PermitLimit`, `WindowSeconds`)
-- User Secrets habilitado na API (`UserSecretsId` no csproj).
+- `Jwt:Issuer|Audience|SigningKey|AccessTokenMinutes`: chave em Base64 com 32+ bytes, **só em User Secrets/variável de ambiente**. Configuração inválida impede a API de subir.
+- `Front:BaseUrl`: endereço do Client, usado nos links dos e-mails (HTTPS, sem caminho).
+- `Email:Provider` (`File` em dev) e `Email:Folder` (opcional).
+- User Secrets habilitado na API (`UserSecretsId` no csproj). Nesta máquina já existe `Jwt:SigningKey`. Em outra máquina:
+  `dotnet user-secrets set "Jwt:SigningKey" "<base64 de 32+ bytes aleatórios>" --project src/Volumo.Api`
+- HTTPS local exige o certificado de desenvolvimento: `dotnet dev-certs https --trust` (nesta máquina ele não foi encontrado em 16/10).
 
 ### Portas locais
 - API: `https://localhost:7010` / `http://localhost:5095`
@@ -200,7 +235,7 @@ Outros ajustes:
 
 Rodar tudo: **`dotnet test --solution Volumo.slnx`** (o `--solution` é necessário com o executor novo).
 
-Situação atual: **137 testes, todos passando** (~10 s). Precisa do LocalDB instalado.
+Situação atual: **173 testes, todos passando** (~10 s). Precisa do LocalDB instalado.
 
 ### Volumo.Domain.Tests
 - Uma classe por entidade/área (`PerfisTests`, `ConviteAlunoTests`, `VinculoPersonalAlunoTests`, `ExercicioTests`, `SerieTests`, `TreinoTests`, `SessaoTreinoTests`).
@@ -216,9 +251,14 @@ Situação atual: **137 testes, todos passando** (~10 s). Precisa do LocalDB ins
   - Configurações passadas com `UseSetting`, e **não** com `ConfigureAppConfiguration`: o Program.cs lê o CORS antes do `Build()`, e a configuração do segundo jeito chega tarde demais.
   - `WithSetting(chave, valor)` muda configurações por teste.
   - `https_port=443` precisa estar definido, senão não há redirecionamento para HTTPS.
-- `Support/TestOnlyController`: rota `/__test/throw`, que só existe no assembly de testes e serve para testar o tratamento de exceções.
+  - Configura JWT com chave só de teste, `Front:BaseUrl`, limites altos de login/cadastro e troca o envio de e-mail por `Support/CaixaDeEmails` (`factory.Emails`), de onde os testes tiram os links.
+  - `CreateHttpsClient(handleCookies: false)` para enviar o cookie do refresh token manualmente.
+- `Support/ContasDeTeste`: cadastrar, confirmar, entrar, renovar e sair pela API, como o app faria.
+- `Auth/`: `CadastroTests`, `LoginTests` (resposta igual para e-mail inexistente e senha errada, bloqueio, cookie protegido, limite de tentativas), `SessaoTests` (rotação, reuso derruba a família, logout por dispositivo, token vencido, exclusão de conta), `TokenDeAcessoTests` (sem token, adulterado, outra chave, vencido, `alg: none`).
+- `Jornadas/JornadaDoPersonalTests`: cadastro → confirmação → login → rota protegida → renovação → logout.
+- `Support/TestOnlyController`: rota `/__test/throw` (`[AllowAnonymous]`), que só existe no assembly de testes e serve para testar o tratamento de exceções.
 - `Security/SecurityHeadersTests`: cabeçalhos em 200, 404 e 500; HSTS; HTTP → HTTPS; ausência do cabeçalho Server.
-- `Security/ErrorHandlingTests`: 500 sem vazar mensagem nem stack trace; 404 em ProblemDetails.
+- `Security/ErrorHandlingTests`: 500 sem vazar mensagem nem stack trace; 404 em ProblemDetails (logado) e 401 para anônimo em rota inexistente.
 - `Security/CorsTests`: origem permitida, origens maliciosas e configurações inválidas que impedem a API de subir.
 - `Security/RateLimitingTests`: 429 + Retry-After. Usa uma fábrica própria porque o limitador guarda estado entre requisições.
 - `HealthTests`: 200 com banco; 503 `Unhealthy` com banco inacessível; API não sobe sem connection string.
@@ -250,21 +290,23 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 - `Cors__AllowedOrigins__0=https://app.volumo.com.br` (ou o domínio definitivo).
 - `AllowedHosts`: o domínio da API (hoje está `*`).
 - Connection string e chave do JWT: confirmar se o painel aceita variáveis de ambiente.
+- Variáveis obrigatórias da autenticação: `Jwt__Issuer`, `Jwt__Audience`, `Jwt__SigningKey` (gerar uma chave nova, nunca reaproveitar a de dev), `Front__BaseUrl`, `Email__Provider` (provedor real; `File` é recusado em produção).
 - Migrations em produção via `dotnet ef migrations script --idempotent`, nunca aplicadas automaticamente na inicialização. Assim o usuário do banco da aplicação não precisa de permissão para alterar tabelas.
 - Se houver Cloudflare ou outro proxy na frente, ajustar o IP do rate limiting (Forwarded Headers), senão todos os usuários caem no mesmo limite.
 
-### Para a fase 3 (autenticação)
-- Ligar a **FallbackPolicy** de autorização (toda rota exige login, exceto as marcadas com `[AllowAnonymous]`). Ficou de fora agora porque ainda não há esquema de autenticação.
-- Aplicar `[EnableRateLimiting(RateLimitPolicies.Login)]` e `RateLimitPolicies.Cadastro` nos endpoints.
-- Criar o projeto `tests/Volumo.E2E.Tests` com a primeira jornada (cadastro → confirmação → login).
-- Cadastro cria `Usuario` + `PerfilPersonal`/`PerfilAluno` **na mesma transação** (o Id do perfil é o do usuário).
-- Convite: na aceitação, conferir também se o e-mail da conta é o do convite (hoje o domínio só valida o token).
-- Roles `Aluno`/`Personal`/`Admin` em `AspNetRoles` (as tabelas do Identity já existem na migration Inicial).
+### Para as fases 3.2 e 3.3
+- **3.2:** 2FA (TOTP) obrigatório para personal: login em duas etapas, claim `amr` com `mfa`, política que exige 2FA nas rotas de personal, códigos de recuperação. Recuperação de senha (sempre 202; redefinir revoga todos os refresh tokens e troca o `SecurityStamp`). Turnstile no cadastro (chaves de teste da Cloudflare no dev).
+- **3.3:** cadastro de aluno pelo convite (o e-mail vem do convite, então já confere), aceite por aluno existente com `AceiteDeConvite` (conferir e-mail da conta = e-mail do convite), papel Aluno; login de conta inativada oferece reativação; suspensão pela plataforma (estado separado, só Admin desfaz).
+- Escolher o **provedor de e-mail** de produção antes do primeiro deploy.
+- Limpeza periódica de refresh tokens vencidos/revogados (tabela cresce a cada renovação).
 
 ### Para a fase 4/5
-- Filtros globais do EF por dono e mapeamento de `RegraDeNegocioException` → 400/422 em ProblemDetails.
+- Filtros globais do EF por dono (o mapeamento de `RegraDeNegocioException` → 400 já existe).
 - Violação do índice `UX_VinculosPersonalAluno_AlunoAtivo` → mensagem amigável ("este aluno já tem um personal").
 - Seed do catálogo de exercícios.
+- **Ideias de produto que afetam o modelo de `Exercicio`** (registradas em 16/10/2026, fora do MVP; ver seção 1 do CLAUDE.md):
+  - **Vídeo de execução:** URL do vídeo (storage com URL assinada ou plataforma externa) no exercício do catálogo; personal pode ter vídeo próprio nos exercícios personalizados.
+  - **Substituição por aparelho indisponível:** o exercício precisa de **equipamento** (máquina, halteres, barra, polia, peso corporal...), **padrão de movimento** (empurrar horizontal, agachar...) e uma relação de **variações livres** e **similares**. Na sessão, o `RegistroSerie` passa a guardar o exercício executado e o prescrito originalmente, para o personal ver a troca. É a mesma base do "modo academia lotada".
 - Limite de alunos por plano (Grátis: 3) ao aceitar convite.
 - Login (fase 3): regras de conta inativa/suspensa da seção "Decisões de produto sobre contas", item 2.
 - Aceite de convite (fase 3/5) via `AceiteDeConvite.Aceitar`.
@@ -282,10 +324,4 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 
 ## 7. Próximo passo
 
-**Fase 3: autenticação** (ver tabela da seção 2 e lembretes acima)
-1. Identity com `Usuario` já existente: senha forte, bloqueio após falhas, confirmação de e-mail obrigatória.
-2. JWT de 15 min + refresh token rotativo (hash no banco, família de tokens revogada em caso de reuso, cookie HttpOnly/Secure/SameSite=Strict).
-3. FallbackPolicy exigindo login; rate limiting nos endpoints de login/cadastro.
-4. 2FA obrigatório para personal; Turnstile no cadastro.
-5. Fluxo de convite de aluno usando `ConviteAluno`.
-6. Testes: matriz 401/403/404 e primeira jornada E2E.
+**Fase 3.2: 2FA, recuperação de senha e Turnstile** (detalhes em "Para as fases 3.2 e 3.3", acima). Depois, 3.3: convite e cadastro de aluno, reativação e suspensão.

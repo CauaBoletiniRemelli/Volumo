@@ -18,6 +18,8 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
 ### Para quem treina
 - **Progressão automática de carga**: sugere a carga da próxima sessão com base no desempenho, nas repetições de sobra (RIR/RPE) e no objetivo.
 - **Modo academia lotada**: se o aparelho está ocupado, sugere um substituto que trabalha o mesmo músculo.
+- **Aparelho indisponível ou inexistente na academia** (ideia de 16/10/2026): o aluno escolhe entre (a) fazer uma **variação livre** do exercício (ex.: halteres em vez de máquina) ou (b) **substituir** por outro exercício de uma lista de similares (mesmo músculo e movimento). A troca fica registrada na sessão para o personal ver.
+- **Vídeos de execução** (ideia de 16/10/2026): cada exercício do catálogo com um vídeo curto mostrando a execução correta, pensando principalmente em iniciantes.
 - **Treino que se adapta ao dia**: "dormi mal" ou "só tenho 30 min" encurta ou ajusta o treino sem perder o foco da semana.
 - **Mapa muscular de volume semanal**: boneco colorido mostrando músculos com pouco ou muito volume.
 - **Recordes e histórico visual**: gráficos de evolução e alertas de novo recorde pessoal.
@@ -235,9 +237,9 @@ Volumo.sln (ou .slnx no .NET 10)
 │   └── Volumo.Infrastructure  → EF Core, SQL Server, pagamentos, arquivos
 └── tests/
     ├── Volumo.Domain.Tests        → regras das entidades
-    ├── Volumo.Api.Tests           → integração (API + LocalDB)
-    ├── Volumo.Architecture.Tests  → dependências entre camadas
-    └── Volumo.E2E.Tests           → jornadas completas (a partir da fase 3)
+    ├── Volumo.Api.Tests           → integração (API + LocalDB) e jornadas completas (Jornadas/)
+    └── Volumo.Architecture.Tests  → dependências entre camadas
+    (Volumo.E2E.Tests separado só quando houver ambiente publicado ou Playwright)
 ```
 
 Estado atual do backend, decisões e próximos passos: `docs/contexto-backend.md`.

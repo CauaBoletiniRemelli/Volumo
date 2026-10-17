@@ -22,6 +22,25 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FriendlyName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Xml")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DataProtectionKeys");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>
                 {
                     b.Property<Guid>("Id")
@@ -48,6 +67,29 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                         .HasFilter("[NormalizedName] IS NOT NULL");
 
                     b.ToTable("AspNetRoles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("0199ecb0-0000-7000-8000-000000000001"),
+                            ConcurrencyStamp = "0199ecb0-0000-7000-8000-000000000001",
+                            Name = "Aluno",
+                            NormalizedName = "ALUNO"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb0-0000-7000-8000-000000000002"),
+                            ConcurrencyStamp = "0199ecb0-0000-7000-8000-000000000002",
+                            Name = "Personal",
+                            NormalizedName = "PERSONAL"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb0-0000-7000-8000-000000000003"),
+                            ConcurrencyStamp = "0199ecb0-0000-7000-8000-000000000003",
+                            Name = "Admin",
+                            NormalizedName = "ADMIN"
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -420,6 +462,47 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.HasIndex("PersonalId", "EncerradoEm");
 
                     b.ToTable("VinculosPersonalAluno", (string)null);
+                });
+
+            modelBuilder.Entity("Volumo.Infrastructure.Identity.TokenDeAtualizacao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CriadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ExpiraEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("FamiliaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("RevogadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("binary(32)")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("UsadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamiliaId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UsuarioId");
+
+                    b.ToTable("TokensDeAtualizacao", (string)null);
                 });
 
             modelBuilder.Entity("Volumo.Infrastructure.Identity.Usuario", b =>
@@ -814,6 +897,15 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.HasOne("Volumo.Domain.Usuarios.PerfilPersonal", null)
                         .WithMany()
                         .HasForeignKey("PersonalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Volumo.Infrastructure.Identity.TokenDeAtualizacao", b =>
+                {
+                    b.HasOne("Volumo.Infrastructure.Identity.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
