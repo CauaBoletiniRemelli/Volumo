@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Serilog;
 using Volumo.Api.Security;
+using Volumo.Infrastructure;
+using Volumo.Infrastructure.Persistencia;
 
 const long maxRequestBodyBytes = 1_048_576; // 1 MB; uploads terão limite próprio
 
@@ -30,7 +32,8 @@ builder.Services.AddHsts(options =>
 
 builder.Services.AddVolumoCors(builder.Configuration);
 builder.Services.AddVolumoRateLimiting(builder.Configuration);
-builder.Services.AddHealthChecks();
+builder.Services.AddVolumoInfrastructure(builder.Configuration.GetConnectionString(DependencyInjection.ConnectionStringName));
+builder.Services.AddHealthChecks().AddDbContextCheck<VolumoDbContext>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 

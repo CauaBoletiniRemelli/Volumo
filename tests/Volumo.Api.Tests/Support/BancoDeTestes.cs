@@ -1,0 +1,35 @@
+using Microsoft.EntityFrameworkCore;
+using Volumo.Api.Tests.Support;
+using Volumo.Infrastructure.Persistencia;
+
+[assembly: AssemblyFixture(typeof(BancoDeTestes))]
+
+namespace Volumo.Api.Tests.Support;
+
+/// <summary>
+/// Banco real no LocalDB, recriado no início de cada execução com as migrations do projeto
+/// (não o EF InMemory, que esconde diferenças do SQL Server). Fica no LocalDB ao final para
+/// poder ser inspecionado.
+/// <para>
+/// Não há limpeza entre testes: cada teste cria os próprios usuários com Ids novos, e toda
+/// consulta da aplicação é filtrada pelo dono, então os testes não enxergam dados uns dos outros
+/// e podem rodar em paralelo.
+/// </para>
+/// </summary>
+public sealed class BancoDeTestes : IAsyncLifetime
+{
+    public const string ConnectionString =
+        @"Server=(localdb)\MSSQLLocalDB;Database=Volumo_Testes;Trusted_Connection=True";
+
+    public static VolumoDbContext NovoContexto() =>
+        new(new DbContextOptionsBuilder<VolumoDbContext>().UseSqlServer(ConnectionString).Options);
+
+    public async ValueTask InitializeAsync()
+    {
+        await using var contexto = NovoContexto();
+        await contexto.Database.EnsureDeletedAsync(TestContext.Current.CancellationToken);
+        await contexto.Database.MigrateAsync(TestContext.Current.CancellationToken);
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}

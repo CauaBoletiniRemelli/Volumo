@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Volumo.Api.Tests.Support;
 
 namespace Volumo.Api.Tests;
 
@@ -22,6 +23,7 @@ public class VolumoApiFactory : WebApplicationFactory<Program>
         ["RateLimiting:Global:PermitLimit"] = "1000",
         ["Serilog:MinimumLevel:Default"] = "Warning",
         ["https_port"] = "443",
+        ["ConnectionStrings:Volumo"] = BancoDeTestes.ConnectionString,
     };
 
     public VolumoApiFactory WithSetting(string key, string value)

@@ -18,5 +18,6 @@
     <File Path="tests/Directory.Build.props" />
     <Project Path="tests/Volumo.Api.Tests/Volumo.Api.Tests.csproj" />
     <Project Path="tests/Volumo.Architecture.Tests/Volumo.Architecture.Tests.csproj" />
+    <Project Path="tests/Volumo.Domain.Tests/Volumo.Domain.Tests.csproj" />
   </Folder>
 </Solution>

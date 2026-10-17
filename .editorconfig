@@ -28,3 +28,7 @@ dotnet_naming_style.underscore_camel.required_prefix = _
 [tests/**.cs]
 # Nomes de teste com sublinhado (Metodo_Cenario_Resultado)
 dotnet_diagnostic.CA1707.severity = none
+
+[**/Migrations/*.cs]
+# Código gerado pelo EF Core: analisadores não se aplicam.
+generated_code = true

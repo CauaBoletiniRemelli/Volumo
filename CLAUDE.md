@@ -5,6 +5,9 @@ Planejamento de 14/10/2026.
 
 ## Regras de trabalho para o Claude
 - **Não fazer commits** (nem push, amend ou merge). O usuário revisa e commita por conta própria; deixar as mudanças no working tree.
+- **Ao concluir cada fase ou etapa**, terminar a resposta com duas explicações do que foi feito:
+  - **Técnica:** decisões de arquitetura, padrões, bibliotecas e por que foram escolhidos.
+  - **Não técnica (resumida):** poucas frases, sem jargão, dizendo o que mudou para o produto e para quem vai usar.
 
 ---
 
@@ -231,9 +234,13 @@ Volumo.sln (ou .slnx no .NET 10)
 │   ├── Volumo.Domain          → Entidades e regras de negócio
 │   └── Volumo.Infrastructure  → EF Core, SQL Server, pagamentos, arquivos
 └── tests/
-    ├── Volumo.Domain.Tests
-    └── Volumo.Api.Tests
+    ├── Volumo.Domain.Tests        → regras das entidades
+    ├── Volumo.Api.Tests           → integração (API + LocalDB)
+    ├── Volumo.Architecture.Tests  → dependências entre camadas
+    └── Volumo.E2E.Tests           → jornadas completas (a partir da fase 3)
 ```
+
+Estado atual do backend, decisões e próximos passos: `docs/contexto-backend.md`.
 
 Referências:
 - Client → Shared
