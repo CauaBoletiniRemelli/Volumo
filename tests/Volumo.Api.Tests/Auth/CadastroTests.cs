@@ -147,8 +147,8 @@ public sealed class CadastroTests(VolumoApiFactory factory) : IClassFixture<Volu
         (await CadastrarPersonalAsync(client, naoConfirmado)).Dispose();
         var inexistente = NovoEmail();
 
-        using var r1 = await client.PostAsJsonAsync("/auth/reenviar-confirmacao", new PedidoDeReenvioDeConfirmacao(naoConfirmado), Ct);
-        using var r2 = await client.PostAsJsonAsync("/auth/reenviar-confirmacao", new PedidoDeReenvioDeConfirmacao(inexistente), Ct);
+        using var r1 = await client.PostAsJsonAsync("/auth/reenviar-confirmacao", new PedidoDeReenvioDeConfirmacao(naoConfirmado, VerificacaoHumanaFalsa.TokenAprovado), Ct);
+        using var r2 = await client.PostAsJsonAsync("/auth/reenviar-confirmacao", new PedidoDeReenvioDeConfirmacao(inexistente, VerificacaoHumanaFalsa.TokenAprovado), Ct);
 
         r1.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         r2.StatusCode.ShouldBe(HttpStatusCode.Accepted);

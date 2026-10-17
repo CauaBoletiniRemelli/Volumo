@@ -19,8 +19,9 @@ public sealed class AuthController(
     UserManager<Usuario> userManager,
     IPasswordHasher<Usuario> passwordHasher,
     VolumoDbContext db,
-    AccessTokenIssuer accessTokens,
+    SessionIssuer sessions,
     RefreshTokenService refreshTokens,
+    TwoFactorChallenge challenges,
     AccountEmails emails) : ControllerBase
 {
     // Hash de uma senha qualquer: no login com e-mail inexistente a API verifica a senha contra ele,
@@ -34,21 +35,14 @@ public sealed class AuthController(
     /// </summary>
     [HttpPost("cadastro/personal")]
     [EnableRateLimiting(RateLimitPolicies.Cadastro)]
+    [RequireHumanVerification]
     public async Task<IActionResult> RegisterPersonal(CadastroDePersonal request, CancellationToken ct)
     {
         var cref = string.IsNullOrWhiteSpace(request.Cref) ? null : Cref.Criar(request.Cref);
         var usuario = new Usuario { UserName = request.Email, Email = request.Email };
 
         // A senha é validada antes de olhar se o e-mail existe, para a resposta não depender disso.
-        foreach (var validator in userManager.PasswordValidators)
-        {
-            var result = await validator.ValidateAsync(userManager, usuario, request.Senha);
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError(nameof(request.Senha), error.Description);
-            }
-        }
-
+        await AddPasswordErrorsAsync(usuario, request.Senha, nameof(request.Senha));
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
@@ -96,7 +90,7 @@ public sealed class AuthController(
     }
 
     [HttpPost("confirmar-email")]
-    public async Task<IActionResult> ConfirmEmail(ConfirmacaoDeEmail request, CancellationToken ct)
+    public async Task<IActionResult> ConfirmEmail(ConfirmacaoDeEmail request)
     {
         var usuario = await userManager.FindByIdAsync(request.UsuarioId.ToString());
         var token = AccountEmails.DecodeToken(request.Token);
@@ -117,6 +111,7 @@ public sealed class AuthController(
     /// <summary>Sempre 202: não revela se o e-mail existe nem se já foi confirmado.</summary>
     [HttpPost("reenviar-confirmacao")]
     [EnableRateLimiting(RateLimitPolicies.Cadastro)]
+    [RequireHumanVerification]
     public async Task<IActionResult> ResendConfirmation(PedidoDeReenvioDeConfirmacao request, CancellationToken ct)
     {
         var usuario = await userManager.FindByEmailAsync(request.Email);
@@ -128,6 +123,10 @@ public sealed class AuthController(
         return Accepted();
     }
 
+    /// <summary>
+    /// Primeira etapa: e-mail e senha. Sem 2FA, já abre a sessão. Com 2FA, devolve só um desafio
+    /// de 5 minutos para a segunda etapa.
+    /// </summary>
     [HttpPost("login")]
     [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<ActionResult<RespostaDeLogin>> Login(PedidoDeLogin request, CancellationToken ct)
@@ -150,18 +149,69 @@ public sealed class AuthController(
             return InvalidCredentials();
         }
 
-        await userManager.ResetAccessFailedCountAsync(usuario);
-
-        // Só chega aqui quem acertou a senha, então dizer que falta confirmar não revela nada a estranhos.
-        if (!usuario.EmailConfirmed)
+        // Com 2FA, a contagem de erros só zera depois do código certo: senha certa + código chutado
+        // continua contando para o bloqueio.
+        if (usuario.TwoFactorEnabled)
         {
-            return Problem(
-                statusCode: StatusCodes.Status403Forbidden,
-                title: "Confirme seu e-mail antes de entrar.",
-                detail: "Enviamos um link de confirmação quando você se cadastrou. Você pode pedir um novo.");
+            if (EmailNotConfirmed(usuario) is { } naoConfirmado)
+            {
+                return naoConfirmado;
+            }
+
+            return new RespostaDeLogin(null, null, challenges.Create(usuario));
         }
 
-        return await StartSessionAsync(usuario, familiaId: null, ct);
+        await userManager.ResetAccessFailedCountAsync(usuario);
+        if (EmailNotConfirmed(usuario) is { } pendente)
+        {
+            return pendente;
+        }
+
+        return await sessions.StartAsync(Response, usuario, comDoisFatores: false, ct);
+    }
+
+    /// <summary>Segunda etapa: código de 6 dígitos do aplicativo autenticador.</summary>
+    [HttpPost("login/2fa")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<ActionResult<RespostaDeLogin>> LoginTwoFactor(SegundaEtapaDoLogin request, CancellationToken ct)
+    {
+        var usuario = await ResolveChallengeAsync(request.Desafio);
+        if (usuario is null)
+        {
+            return InvalidSecondFactor();
+        }
+
+        var code = NormalizeCode(request.Codigo);
+        if (!await userManager.VerifyTwoFactorTokenAsync(usuario, userManager.Options.Tokens.AuthenticatorTokenProvider, code))
+        {
+            await userManager.AccessFailedAsync(usuario);
+            return InvalidSecondFactor();
+        }
+
+        await userManager.ResetAccessFailedCountAsync(usuario);
+        return await sessions.StartAsync(Response, usuario, comDoisFatores: true, ct);
+    }
+
+    /// <summary>Alternativa à segunda etapa quando a pessoa perdeu o celular. Cada código vale uma vez.</summary>
+    [HttpPost("login/recuperacao")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<ActionResult<RespostaDeLogin>> LoginWithRecoveryCode(LoginComCodigoDeRecuperacao request, CancellationToken ct)
+    {
+        var usuario = await ResolveChallengeAsync(request.Desafio);
+        if (usuario is null)
+        {
+            return InvalidSecondFactor();
+        }
+
+        var redeemed = await userManager.RedeemTwoFactorRecoveryCodeAsync(usuario, NormalizeRecoveryCode(request.CodigoDeRecuperacao));
+        if (!redeemed.Succeeded)
+        {
+            await userManager.AccessFailedAsync(usuario);
+            return InvalidSecondFactor();
+        }
+
+        await userManager.ResetAccessFailedCountAsync(usuario);
+        return await sessions.StartAsync(Response, usuario, comDoisFatores: true, ct);
     }
 
     /// <summary>Troca o refresh token do cookie por um novo e devolve um token de acesso novo.</summary>
@@ -185,8 +235,7 @@ public sealed class AuthController(
         }
 
         RefreshTokenCookie.Write(Response, rotated.NewToken, rotated.ExpiresAt);
-        var (accessToken, expiresAt) = accessTokens.Issue(usuario, await userManager.GetRolesAsync(usuario));
-        return new RespostaDeLogin(accessToken, expiresAt);
+        return await sessions.AccessTokenAsync(usuario, rotated.ComDoisFatores);
     }
 
     /// <summary>Encerra a sessão deste dispositivo. Funciona mesmo com o token de acesso vencido.</summary>
@@ -202,19 +251,115 @@ public sealed class AuthController(
         return NoContent();
     }
 
-    private async Task<RespostaDeLogin> StartSessionAsync(Usuario usuario, Guid? familiaId, CancellationToken ct)
+    /// <summary>Sempre 202: não revela se o e-mail tem conta.</summary>
+    [HttpPost("esqueci-senha")]
+    [EnableRateLimiting(RateLimitPolicies.Cadastro)]
+    [RequireHumanVerification]
+    public async Task<IActionResult> ForgotPassword(PedidoDeRecuperacaoDeSenha request, CancellationToken ct)
     {
-        var (refreshToken, refreshExpiresAt) = await refreshTokens.IssueAsync(usuario.Id, familiaId, ct);
-        RefreshTokenCookie.Write(Response, refreshToken, refreshExpiresAt);
+        var usuario = await userManager.FindByEmailAsync(request.Email);
+        if (usuario is { AnonimizadoEm: null })
+        {
+            await emails.SendPasswordResetAsync(usuario, ct);
+        }
 
-        var (accessToken, expiresAt) = accessTokens.Issue(usuario, await userManager.GetRolesAsync(usuario));
-        return new RespostaDeLogin(accessToken, expiresAt);
+        return Accepted();
     }
+
+    /// <summary>
+    /// Nova senha pelo link do e-mail. Encerra todas as sessões, desbloqueia a conta e avisa por e-mail.
+    /// O 2FA continua valendo no próximo login.
+    /// </summary>
+    [HttpPost("redefinir-senha")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> ResetPassword(RedefinicaoDeSenha request, CancellationToken ct)
+    {
+        var usuario = await userManager.FindByIdAsync(request.UsuarioId.ToString());
+        var token = AccountEmails.DecodeToken(request.Token);
+        if (usuario is null || token is null || usuario.AnonimizadoEm is not null)
+        {
+            return InvalidLink();
+        }
+
+        var result = await userManager.ResetPasswordAsync(usuario, token, request.NovaSenha);
+        if (!result.Succeeded)
+        {
+            return result.Errors.Any(e => e.Code == nameof(IdentityErrorDescriber.InvalidToken))
+                ? InvalidLink()
+                : IdentityProblem(result, nameof(request.NovaSenha));
+        }
+
+        // Quem abriu o link do e-mail provou que é dono dele.
+        if (!usuario.EmailConfirmed)
+        {
+            usuario.EmailConfirmed = true;
+            await userManager.UpdateAsync(usuario);
+        }
+
+        await userManager.SetLockoutEndDateAsync(usuario, null);
+        await userManager.ResetAccessFailedCountAsync(usuario);
+        await refreshTokens.RevokeAllForUserAsync(usuario.Id, ct);
+        await emails.SendPasswordChangedAsync(usuario, ct);
+        return NoContent();
+    }
+
+    /// <summary>Usuário do desafio, se o desafio é válido e nada mudou na conta desde a primeira etapa.</summary>
+    private async Task<Usuario?> ResolveChallengeAsync(string desafio)
+    {
+        if (challenges.Read(desafio) is not { } dados)
+        {
+            return null;
+        }
+
+        var usuario = await userManager.FindByIdAsync(dados.UsuarioId.ToString());
+        var valid = usuario is { TwoFactorEnabled: true, EmailConfirmed: true, AnonimizadoEm: null }
+            && usuario.SecurityStamp == dados.SecurityStamp
+            && !await userManager.IsLockedOutAsync(usuario);
+        return valid ? usuario : null;
+    }
+
+    private async Task AddPasswordErrorsAsync(Usuario usuario, string password, string field)
+    {
+        foreach (var validator in userManager.PasswordValidators)
+        {
+            var result = await validator.ValidateAsync(userManager, usuario, password);
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(field, error.Description);
+            }
+        }
+    }
+
+    private static string NormalizeCode(string code) =>
+        code.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal);
+
+    /// <summary>
+    /// O Identity guarda os códigos de recuperação como "XXXXX-XXXXX" e compara o texto exato; aceita
+    /// também a forma digitada sem hífen, com espaços ou em minúsculas.
+    /// </summary>
+    private static string NormalizeRecoveryCode(string code)
+    {
+        var compact = NormalizeCode(code).ToUpperInvariant();
+        return compact.Length == 10 ? $"{compact[..5]}-{compact[5..]}" : compact;
+    }
+
+    /// <summary>Só é chamado depois da senha certa, então dizer que falta confirmar não revela nada a estranhos.</summary>
+    private ObjectResult? EmailNotConfirmed(Usuario usuario) => usuario.EmailConfirmed
+        ? null
+        : Problem(
+            statusCode: StatusCodes.Status403Forbidden,
+            title: "Confirme seu e-mail antes de entrar.",
+            detail: "Enviamos um link de confirmação quando você se cadastrou. Você pode pedir um novo.");
 
     private ObjectResult InvalidCredentials() => Problem(
         statusCode: StatusCodes.Status401Unauthorized,
         title: "E-mail ou senha inválidos.",
         detail: "Depois de várias tentativas erradas, o acesso fica bloqueado por alguns minutos.");
+
+    private ObjectResult InvalidSecondFactor() => Problem(
+        statusCode: StatusCodes.Status401Unauthorized,
+        title: "Código inválido ou expirado.",
+        detail: "Confira o código no aplicativo autenticador ou entre de novo com e-mail e senha.");
 
     private ObjectResult SessionExpired()
     {
@@ -225,11 +370,11 @@ public sealed class AuthController(
     private ObjectResult InvalidLink() =>
         Problem(statusCode: StatusCodes.Status400BadRequest, title: "Link inválido ou expirado.");
 
-    private ActionResult IdentityProblem(IdentityResult result)
+    private ActionResult IdentityProblem(IdentityResult result, string field = "")
     {
         foreach (var error in result.Errors)
         {
-            ModelState.AddModelError(string.Empty, error.Description);
+            ModelState.AddModelError(field, error.Description);
         }
 
         return ValidationProblem(ModelState);

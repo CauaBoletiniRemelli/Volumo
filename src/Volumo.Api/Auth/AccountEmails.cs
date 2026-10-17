@@ -10,6 +10,7 @@ namespace Volumo.Api.Auth;
 public sealed class AccountEmails(UserManager<Usuario> userManager, IEnvioDeEmail email, FrontSettings front)
 {
     public const string ConfirmEmailPath = "/confirmar-email";
+    public const string ResetPasswordPath = "/redefinir-senha";
 
     public async Task SendConfirmationAsync(Usuario usuario, CancellationToken ct)
     {
@@ -39,6 +40,34 @@ public sealed class AccountEmails(UserManager<Usuario> userManager, IEnvioDeEmai
                 "Tentativa de cadastro no Volumo",
                 "Alguém tentou criar uma conta no Volumo com este e-mail, mas você já tem uma conta.\n\n"
                 + "Se foi você, é só entrar com sua senha. Se não foi, pode ignorar este e-mail."),
+            ct);
+
+    public async Task SendPasswordResetAsync(Usuario usuario, CancellationToken ct)
+    {
+        var token = await userManager.GeneratePasswordResetTokenAsync(usuario);
+        var link = front.Link(ResetPasswordPath, new Dictionary<string, string>
+        {
+            ["usuario"] = usuario.Id.ToString(),
+            ["token"] = EncodeToken(token),
+        });
+
+        await email.EnviarAsync(
+            new MensagemDeEmail(
+                usuario.Email!,
+                "Redefinir sua senha do Volumo",
+                $"Recebemos um pedido para redefinir sua senha. O link abaixo vale por 1 hora:\n\n{link}\n\n"
+                + "Se não foi você, ignore este e-mail: sua senha continua a mesma."),
+            ct);
+    }
+
+    /// <summary>Aviso de segurança: se não foi a pessoa, ela fica sabendo na hora.</summary>
+    public Task SendPasswordChangedAsync(Usuario usuario, CancellationToken ct) =>
+        email.EnviarAsync(
+            new MensagemDeEmail(
+                usuario.Email!,
+                "Sua senha do Volumo foi alterada",
+                "A senha da sua conta acabou de ser redefinida e todas as sessões abertas foram encerradas.\n\n"
+                + "Se não foi você, redefina a senha de novo imediatamente e fale com o suporte."),
             ct);
 
     /// <summary>Tokens do Identity têm caracteres que quebram URLs; vão em Base64Url.</summary>

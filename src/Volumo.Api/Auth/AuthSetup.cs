@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using Volumo.Api.Security;
+using Volumo.Domain.Usuarios;
 using Volumo.Infrastructure.Email;
 using Volumo.Infrastructure.Identity;
 using Volumo.Infrastructure.Persistencia;
@@ -46,11 +48,13 @@ public static class AuthSetup
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 
                 options.SignIn.RequireConfirmedEmail = true;
+                options.Tokens.PasswordResetTokenProvider = PasswordResetTokenProvider.ProviderName;
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<VolumoDbContext>()
             .AddErrorDescriber<PortugueseIdentityErrorDescriber>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            .AddTokenProvider<PasswordResetTokenProvider>(PasswordResetTokenProvider.ProviderName);
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -72,11 +76,26 @@ public static class AuthSetup
             });
 
         services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .AddPolicy(Policies.Personal, policy => policy
+                .RequireRole(Papeis.Personal)
+                .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor))
+            .AddPolicy(Policies.Aluno, policy => policy.RequireRole(Papeis.Aluno))
+            .AddPolicy(Policies.Admin, policy => policy
+                .RequireRole(Papeis.Admin)
+                .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor))
+            .AddPolicy(Policies.MultiFactor, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor));
 
         services.AddSingleton<AccessTokenIssuer>();
+        services.AddSingleton<TwoFactorChallenge>();
         services.AddScoped<RefreshTokenService>();
+        services.AddScoped<SessionIssuer>();
         services.AddScoped<AccountEmails>();
+
+        services.AddSingleton(TurnstileSettings.Load(configuration));
+        services.AddHttpClient<IHumanVerifier, TurnstileVerifier>(client => client.Timeout = TimeSpan.FromSeconds(10));
         services.AddVolumoEmail(configuration, environment);
         return services;
     }

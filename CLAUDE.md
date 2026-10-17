@@ -35,6 +35,13 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
 
 ### Diferenciais mais ousados
 - Desafios entre alunos do mesmo personal (ranking de frequência, não de carga).
+- **Ranking de alunos com foto de check-in** (ideia de 16/10/2026): ao fim de cada treino o aluno tira uma foto, que valida o treino e soma pontos. Rankings por **personal**, **academia** e **cidade**. Cuidados levantados:
+  - Pontuar **constância** (treinos concluídos, semanas seguidas), nunca carga, para não incentivar exagero e lesão.
+  - **Participação opcional** (opt-in) e com apelido: aparecer num ranking público expõe a rotina e o local da pessoa.
+  - Foto é dado pessoal (imagem) e às vezes de saúde (corpo): consentimento próprio, não exibir publicamente por padrão, apagar na exclusão de conta. A foto pode ficar só como prova para o sistema/personal.
+  - Antifraude: foto tirada pela câmera dentro do app (não da galeria), horário do servidor, um check-in por treino/dia, e a sessão precisa ter séries registradas.
+  - Academia e cidade exigem saber onde a pessoa treina: preferir que ela escolha a academia num cadastro, em vez de rastrear GPS.
+  - Começar pelo ranking **por personal** (escopo pequeno, já previsto) e só depois academia/cidade.
 - Gerar treino com IA a partir de uma conversa, sempre revisável pelo personal.
 - Integração com relógios e Apple Health / Google Fit.
 

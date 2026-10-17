@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Volumo.Api.Auth;
+using Volumo.Domain.Usuarios;
 using Volumo.Infrastructure.Identity;
 using Volumo.Shared.Autenticacao;
 
@@ -14,15 +15,18 @@ public sealed class ContaController(UserManager<Usuario> userManager) : Controll
     [HttpGet]
     public async Task<ActionResult<DadosDaConta>> Get()
     {
-        var usuario = Guid.TryParse(User.FindFirst(VolumoClaims.Subject)?.Value, out var id)
-            ? await userManager.FindByIdAsync(id.ToString())
-            : null;
-
+        var usuario = User.UsuarioId() is { } id ? await userManager.FindByIdAsync(id.ToString()) : null;
         if (usuario is null || usuario.AnonimizadoEm is not null)
         {
             return Unauthorized();
         }
 
-        return new DadosDaConta(usuario.Id, usuario.Email!, [.. await userManager.GetRolesAsync(usuario)]);
+        var papeis = await userManager.GetRolesAsync(usuario);
+        return new DadosDaConta(
+            usuario.Id,
+            usuario.Email!,
+            [.. papeis],
+            usuario.TwoFactorEnabled,
+            PrecisaConfigurarDoisFatores: papeis.Contains(Papeis.Personal) && !usuario.TwoFactorEnabled);
     }
 }

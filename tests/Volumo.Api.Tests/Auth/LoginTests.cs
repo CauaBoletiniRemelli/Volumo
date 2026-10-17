@@ -25,7 +25,7 @@ public sealed class LoginTests(VolumoApiFactory factory) : IClassFixture<VolumoA
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var corpo = await response.Content.ReadFromJsonAsync<RespostaDeLogin>(Ct);
         corpo!.TokenDeAcesso.ShouldNotBeNullOrWhiteSpace();
-        (corpo.ExpiraEm - DateTimeOffset.UtcNow).TotalMinutes.ShouldBeInRange(14, 15.1);
+        (corpo.ExpiraEm!.Value - DateTimeOffset.UtcNow).TotalMinutes.ShouldBeInRange(14, 15.1);
 
         var cookie = SetCookieDeAtualizacao(response)!.ToUpperInvariant();
         cookie.ShouldContain("HTTPONLY");

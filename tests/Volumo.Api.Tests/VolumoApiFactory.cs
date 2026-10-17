@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Volumo.Api.Security;
 using Volumo.Api.Tests.Support;
 using Volumo.Infrastructure.Email;
 
@@ -36,6 +37,7 @@ public class VolumoApiFactory : WebApplicationFactory<Program>
         ["Jwt:SigningKey"] = TestSigningKey,
         ["Front:BaseUrl"] = AllowedOrigin,
         ["Email:Provider"] = "File",
+        ["Turnstile:SecretKey"] = "chave-de-teste",
     };
 
     /// <summary>E-mails "enviados" pela API desta fábrica.</summary>
@@ -71,6 +73,8 @@ public class VolumoApiFactory : WebApplicationFactory<Program>
             services.AddControllers().AddApplicationPart(typeof(VolumoApiFactory).Assembly);
             services.RemoveAll<IEnvioDeEmail>();
             services.AddSingleton<IEnvioDeEmail>(Emails);
+            services.RemoveAll<IHumanVerifier>();
+            services.AddSingleton<IHumanVerifier, VerificacaoHumanaFalsa>();
         });
     }
 }

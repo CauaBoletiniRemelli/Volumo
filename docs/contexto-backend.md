@@ -28,7 +28,7 @@ Use este arquivo junto com o `CLAUDE.md` (planejamento do produto) para retomar 
 | 0. Fundação | Estrutura src/tests, global.json, Directory.Build.props, versões centralizadas, .editorconfig | ✅ Feito |
 | 1. Proteções da API | Cabeçalhos de segurança, HSTS, CORS, rate limiting, ProblemDetails, limite de requisição, Serilog, health check | ✅ Feito |
 | 2. Domínio + persistência | Entidades, EF Core, migrations, LocalDB, IDs GUID v7 gerados no cliente (sincronização offline) | ✅ Feito (16/10) |
-| 3. Autenticação | **3.1** Identity, cadastro de personal, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo, logout, login obrigatório por padrão · **3.2** 2FA obrigatório para personal, recuperação de senha, Turnstile · **3.3** convite e cadastro de aluno, reativação de conta, suspensão | 3.1 ✅ Feito (16/10) · 3.2 ⏭️ **Próxima** · 3.3 Pendente |
+| 3. Autenticação | **3.1** Identity, cadastro de personal, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo, logout, login obrigatório por padrão · **3.2** 2FA obrigatório para personal, recuperação de senha, Turnstile · **3.3** convite e cadastro de aluno, reativação de conta, suspensão | 3.1 ✅ · 3.2 ✅ Feito (16/10) · 3.3 ⏭️ **Próxima** |
 | 4. Autorização contra IDOR | Roles e policies, autorização por recurso, filtros globais do EF por dono, 404 para recurso alheio | Pendente |
 | 5. Funcionalidades do MVP | CRUD de templates e treinos, atribuição ao aluno, registro de sessão com idempotência, painel do personal (último treino, sumido há mais de 5 dias, estagnado) | Pendente |
 | 6. Cobrança + LGPD | Webhook do gateway com validação de assinatura e idempotência, consentimento, exportação e exclusão de conta | Pendente |
@@ -147,7 +147,7 @@ Volumo.slnx
     └── Volumo.Architecture.Tests → regras de dependência entre camadas (NetArchTest)
 ```
 
-### Autenticação (fase 3.1)
+### Autenticação (fases 3.1 e 3.2)
 
 | Rota | Acesso | O que faz |
 |---|---|---|
@@ -157,7 +157,26 @@ Volumo.slnx
 | `POST /auth/login` | anônimo, limite `login` | 200 `{tokenDeAcesso, expiraEm}` + cookie do refresh token; e-mail inexistente e senha errada → **mesmo 401**; e-mail não confirmado (senha certa) → 403 |
 | `POST /auth/refresh` | cookie | Rotaciona o refresh token e devolve novo token de acesso; falha → 401 e apaga o cookie |
 | `POST /auth/logout` | cookie | Revoga a família do token (só aquele dispositivo) e apaga o cookie → 204 |
-| `GET /conta` | login | Id, e-mail e papéis |
+| `POST /auth/login/2fa` | anônimo, limite `login` | `{desafio, codigo}`: segunda etapa com o código TOTP → sessão com 2FA |
+| `POST /auth/login/recuperacao` | anônimo, limite `login` | `{desafio, codigoDeRecuperacao}`: alternativa sem o celular; cada código vale uma vez |
+| `POST /auth/2fa/iniciar` | login | Gera a chave do autenticador (`chave` em grupos de 4 + `uriOtpauth` para QR code); 409 se já ativo |
+| `POST /auth/2fa/ativar` | login | `{codigo}` → ativa, devolve 10 códigos de recuperação **e troca a sessão** por uma com 2FA (cookie novo; o antigo é revogado) |
+| `POST /auth/2fa/codigos-de-recuperacao` | sessão com 2FA | Gera 10 códigos novos; os antigos deixam de valer |
+| `POST /auth/esqueci-senha` | anônimo, limite `cadastro`, Turnstile | Sempre 202; e-mail com link de 1 hora |
+| `POST /auth/redefinir-senha` | anônimo, limite `login` | `{usuarioId, token, novaSenha}` → 204: troca a senha, encerra **todas** as sessões, desbloqueia, confirma o e-mail se faltava e avisa por e-mail. O 2FA continua valendo |
+| `GET /conta` | login | Id, e-mail, papéis, `doisFatoresAtivo`, `precisaConfigurarDoisFatores` (personal sem 2FA) |
+
+**2FA (fase 3.2):**
+- **Obrigatório para personal** pela política `Policies.Personal` (papel Personal **e** claim `amr` com `mfa`). Personal sem 2FA consegue entrar (amr só `pwd`), mas toda rota de personal responde 403; o `/conta` avisa `precisaConfigurarDoisFatores` para o app levar à configuração. Outras políticas: `Aluno`, `Admin` (com 2FA) e `MultiFactor`.
+- **Login com 2FA ativo:** senha certa devolve só `desafio2Fa` (sem token, sem cookie). O desafio é cifrado pelo Data Protection, vale 5 min e é amarrado ao `SecurityStamp` (troca de senha ou de 2FA invalida desafios pendentes). A contagem de erros só zera depois do código certo: 5 códigos errados bloqueiam a conta.
+- **Sessão lembra o 2FA:** `TokenDeAtualizacao.ComDoisFatores`; a renovação mantém `mfa` no token novo.
+- Códigos de recuperação no formato do Identity (`XXXXX-XXXXX`); a API aceita digitados sem hífen, com espaços ou em minúsculas.
+- Aplicativos compatíveis: Google Authenticator, Microsoft Authenticator, Authy etc. (TOTP padrão, 6 dígitos, 30 s).
+- Limitações conhecidas: o Identity guarda a chave do autenticador e os códigos de recuperação **em texto** na `AspNetUserTokens` (proteger o banco: backup cifrado/TDE); um mesmo código TOTP pode ser reaproveitado dentro da janela de ~30 s.
+
+**Recuperação de senha (fase 3.2):** token próprio (`PasswordResetTokenProvider`) com validade de **1 hora**, separado do link de confirmação de e-mail; vale uma vez (a troca de senha muda o `SecurityStamp`).
+
+**Turnstile (fase 3.2):** atributo `[RequireHumanVerification]` nas ações cujo corpo implementa `IComVerificacaoHumana` (campo `tokenTurnstile`): cadastro de personal, reenvio de confirmação e esqueci-senha (tudo que dispara e-mail). O servidor valida em `challenges.cloudflare.com/turnstile/v0/siteverify` com o IP do cliente; rede fora ou resposta estranha → recusa (falha fechada). Em dev, chave pública de teste da Cloudflare que sempre aprova (secret `1x0000000000000000000000000000000AA`, site key `1x00000000000000000000AA`). Login ainda não usa Turnstile (tem limite de tentativas e bloqueio); avaliar exigir depois de algumas falhas.
 
 Decisões e detalhes:
 - **Política padrão:** toda rota exige login; rotas públicas usam `[AllowAnonymous]` (`/auth/*`, `/health`, OpenAPI em dev). Vale também para rotas inexistentes: anônimo recebe **401** (não revela quais rotas existem); logado recebe 404.
@@ -221,6 +240,7 @@ Outros ajustes:
 - `Jwt:Issuer|Audience|SigningKey|AccessTokenMinutes`: chave em Base64 com 32+ bytes, **só em User Secrets/variável de ambiente**. Configuração inválida impede a API de subir.
 - `Front:BaseUrl`: endereço do Client, usado nos links dos e-mails (HTTPS, sem caminho).
 - `Email:Provider` (`File` em dev) e `Email:Folder` (opcional).
+- `Turnstile:SecretKey`: obrigatória (a API não sobe sem ela). Em dev, a chave de teste da Cloudflare.
 - User Secrets habilitado na API (`UserSecretsId` no csproj). Nesta máquina já existe `Jwt:SigningKey`. Em outra máquina:
   `dotnet user-secrets set "Jwt:SigningKey" "<base64 de 32+ bytes aleatórios>" --project src/Volumo.Api`
 - HTTPS local exige o certificado de desenvolvimento: `dotnet dev-certs https --trust` (nesta máquina ele não foi encontrado em 16/10).
@@ -235,7 +255,7 @@ Outros ajustes:
 
 Rodar tudo: **`dotnet test --solution Volumo.slnx`** (o `--solution` é necessário com o executor novo).
 
-Situação atual: **173 testes, todos passando** (~10 s). Precisa do LocalDB instalado.
+Situação atual: **201 testes, todos passando** (~12 s). Precisa do LocalDB instalado.
 
 ### Volumo.Domain.Tests
 - Uma classe por entidade/área (`PerfisTests`, `ConviteAlunoTests`, `VinculoPersonalAlunoTests`, `ExercicioTests`, `SerieTests`, `TreinoTests`, `SessaoTreinoTests`).
@@ -254,8 +274,9 @@ Situação atual: **173 testes, todos passando** (~10 s). Precisa do LocalDB ins
   - Configura JWT com chave só de teste, `Front:BaseUrl`, limites altos de login/cadastro e troca o envio de e-mail por `Support/CaixaDeEmails` (`factory.Emails`), de onde os testes tiram os links.
   - `CreateHttpsClient(handleCookies: false)` para enviar o cookie do refresh token manualmente.
 - `Support/ContasDeTeste`: cadastrar, confirmar, entrar, renovar e sair pela API, como o app faria.
-- `Auth/`: `CadastroTests`, `LoginTests` (resposta igual para e-mail inexistente e senha errada, bloqueio, cookie protegido, limite de tentativas), `SessaoTests` (rotação, reuso derruba a família, logout por dispositivo, token vencido, exclusão de conta), `TokenDeAcessoTests` (sem token, adulterado, outra chave, vencido, `alg: none`).
-- `Jornadas/JornadaDoPersonalTests`: cadastro → confirmação → login → rota protegida → renovação → logout.
+- `Auth/`: `CadastroTests`, `LoginTests` (resposta igual para e-mail inexistente e senha errada, bloqueio, cookie protegido, limite de tentativas), `SessaoTests` (rotação, reuso derruba a família, logout por dispositivo, token vencido, exclusão de conta), `TokenDeAcessoTests` (sem token, adulterado, outra chave, vencido, `alg: none`), `DoisFatoresTests` (personal sem 2FA barrado, ativação troca a sessão, desafio, código errado/adulterado, bloqueio, códigos de recuperação), `RecuperacaoDeSenhaTests` (sempre 202, link de uso único, sessões derrubadas, desbloqueio, 2FA continua valendo), `TurnstileTests` (formulários barrados; verificador testado com `HttpMessageHandler` falso, sem rede).
+- `Jornadas/JornadaDoPersonalTests`: cadastro → confirmação → login → rota protegida → renovação → logout; e personal configurando o 2FA e entrando com o código.
+- `Support/Totp`: gera códigos TOTP como um aplicativo autenticador. `Support/VerificacaoHumanaFalsa`: substitui o Turnstile (`TokenAprovado`/`TokenReprovado`). `Support/TestPoliciesController`: rota `/__test/politicas/personal` para testar a política de personal.
 - `Support/TestOnlyController`: rota `/__test/throw` (`[AllowAnonymous]`), que só existe no assembly de testes e serve para testar o tratamento de exceções.
 - `Security/SecurityHeadersTests`: cabeçalhos em 200, 404 e 500; HSTS; HTTP → HTTPS; ausência do cabeçalho Server.
 - `Security/ErrorHandlingTests`: 500 sem vazar mensagem nem stack trace; 404 em ProblemDetails (logado) e 401 para anônimo em rota inexistente.
@@ -290,12 +311,12 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 - `Cors__AllowedOrigins__0=https://app.volumo.com.br` (ou o domínio definitivo).
 - `AllowedHosts`: o domínio da API (hoje está `*`).
 - Connection string e chave do JWT: confirmar se o painel aceita variáveis de ambiente.
-- Variáveis obrigatórias da autenticação: `Jwt__Issuer`, `Jwt__Audience`, `Jwt__SigningKey` (gerar uma chave nova, nunca reaproveitar a de dev), `Front__BaseUrl`, `Email__Provider` (provedor real; `File` é recusado em produção).
+- Variáveis obrigatórias da autenticação: `Jwt__Issuer`, `Jwt__Audience`, `Jwt__SigningKey` (gerar uma chave nova, nunca reaproveitar a de dev), `Front__BaseUrl`, `Email__Provider` (provedor real; `File` é recusado em produção), `Turnstile__SecretKey` (chave real do site no painel da Cloudflare).
 - Migrations em produção via `dotnet ef migrations script --idempotent`, nunca aplicadas automaticamente na inicialização. Assim o usuário do banco da aplicação não precisa de permissão para alterar tabelas.
 - Se houver Cloudflare ou outro proxy na frente, ajustar o IP do rate limiting (Forwarded Headers), senão todos os usuários caem no mesmo limite.
 
 ### Para as fases 3.2 e 3.3
-- **3.2:** 2FA (TOTP) obrigatório para personal: login em duas etapas, claim `amr` com `mfa`, política que exige 2FA nas rotas de personal, códigos de recuperação. Recuperação de senha (sempre 202; redefinir revoga todos os refresh tokens e troca o `SecurityStamp`). Turnstile no cadastro (chaves de teste da Cloudflare no dev).
+- Rotas de personal criadas na fase 5 **precisam** usar `[Authorize(Policy = Policies.Personal)]` (o 2FA obrigatório depende disso) e entrar na matriz de testes 401/403/404.
 - **3.3:** cadastro de aluno pelo convite (o e-mail vem do convite, então já confere), aceite por aluno existente com `AceiteDeConvite` (conferir e-mail da conta = e-mail do convite), papel Aluno; login de conta inativada oferece reativação; suspensão pela plataforma (estado separado, só Admin desfaz).
 - Escolher o **provedor de e-mail** de produção antes do primeiro deploy.
 - Limpeza periódica de refresh tokens vencidos/revogados (tabela cresce a cada renovação).
@@ -324,4 +345,4 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 
 ## 7. Próximo passo
 
-**Fase 3.2: 2FA, recuperação de senha e Turnstile** (detalhes em "Para as fases 3.2 e 3.3", acima). Depois, 3.3: convite e cadastro de aluno, reativação e suspensão.
+**Fase 3.3: convite e cadastro de aluno, reativação de conta e suspensão** (detalhes em "Para as fases 3.2 e 3.3", acima). Depois, fase 4 (autorização contra IDOR).

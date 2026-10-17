@@ -469,6 +469,9 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("ComDoisFatores")
+                        .HasColumnType("bit");
+
                     b.Property<DateTimeOffset>("CriadoEm")
                         .HasColumnType("datetimeoffset");
 

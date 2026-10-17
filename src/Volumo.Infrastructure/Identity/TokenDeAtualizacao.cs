@@ -17,11 +17,12 @@ public sealed class TokenDeAtualizacao
     {
     }
 
-    private TokenDeAtualizacao(Guid usuarioId, Guid familiaId, byte[] tokenHash, DateTimeOffset criadoEm, DateTimeOffset expiraEm)
+    private TokenDeAtualizacao(Guid usuarioId, Guid familiaId, bool comDoisFatores, byte[] tokenHash, DateTimeOffset criadoEm, DateTimeOffset expiraEm)
     {
         Id = Guid.CreateVersion7();
         UsuarioId = usuarioId;
         FamiliaId = familiaId;
+        ComDoisFatores = comDoisFatores;
         TokenHash = tokenHash;
         CriadoEm = criadoEm;
         ExpiraEm = expiraEm;
@@ -32,6 +33,9 @@ public sealed class TokenDeAtualizacao
     public Guid UsuarioId { get; private set; }
 
     public Guid FamiliaId { get; private set; }
+
+    /// <summary>A sessão foi aberta com segundo fator; a renovação mantém isso no token de acesso.</summary>
+    public bool ComDoisFatores { get; private set; }
 
     public byte[] TokenHash { get; private set; } = null!;
 
@@ -45,10 +49,10 @@ public sealed class TokenDeAtualizacao
 
     /// <summary>Cria o registro e devolve o token em claro, que vai só para o cookie.</summary>
     public static (TokenDeAtualizacao Registro, string Token) Criar(
-        Guid usuarioId, Guid familiaId, DateTimeOffset agora, TimeSpan validade)
+        Guid usuarioId, Guid familiaId, bool comDoisFatores, DateTimeOffset agora, TimeSpan validade)
     {
         var bytes = RandomNumberGenerator.GetBytes(TamanhoTokenBytes);
-        var registro = new TokenDeAtualizacao(usuarioId, familiaId, SHA256.HashData(bytes), agora, agora + validade);
+        var registro = new TokenDeAtualizacao(usuarioId, familiaId, comDoisFatores, SHA256.HashData(bytes), agora, agora + validade);
         return (registro, Base64Url.EncodeToString(bytes));
     }
 

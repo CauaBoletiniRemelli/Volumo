@@ -4,7 +4,7 @@ using Volumo.Infrastructure.Persistencia;
 
 namespace Volumo.Api.Auth;
 
-public sealed record RefreshResult(Guid UsuarioId, Guid FamiliaId, string NewToken, DateTimeOffset ExpiresAt);
+public sealed record RefreshResult(Guid UsuarioId, Guid FamiliaId, bool ComDoisFatores, string NewToken, DateTimeOffset ExpiresAt);
 
 /// <summary>
 /// Refresh tokens rotativos com detecção de reuso: cada token vale uma vez; apresentar um token já
@@ -16,9 +16,11 @@ public sealed partial class RefreshTokenService(VolumoDbContext db, TimeProvider
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(30);
 
     /// <summary>Emite um token novo; sem <paramref name="familiaId"/>, abre uma família (novo login).</summary>
-    public async Task<(string Token, DateTimeOffset ExpiresAt)> IssueAsync(Guid usuarioId, Guid? familiaId, CancellationToken ct)
+    public async Task<(string Token, DateTimeOffset ExpiresAt)> IssueAsync(
+        Guid usuarioId, Guid? familiaId, bool comDoisFatores, CancellationToken ct)
     {
-        var (registro, token) = TokenDeAtualizacao.Criar(usuarioId, familiaId ?? Guid.CreateVersion7(), clock.GetUtcNow(), Lifetime);
+        var (registro, token) = TokenDeAtualizacao.Criar(
+            usuarioId, familiaId ?? Guid.CreateVersion7(), comDoisFatores, clock.GetUtcNow(), Lifetime);
         db.TokensDeAtualizacao.Add(registro);
         await db.SaveChangesAsync(ct);
         return (token, registro.ExpiraEm);
@@ -64,8 +66,8 @@ public sealed partial class RefreshTokenService(VolumoDbContext db, TimeProvider
             return null;
         }
 
-        var (novo, expiresAt) = await IssueAsync(atual.UsuarioId, atual.FamiliaId, ct);
-        return new RefreshResult(atual.UsuarioId, atual.FamiliaId, novo, expiresAt);
+        var (novo, expiresAt) = await IssueAsync(atual.UsuarioId, atual.FamiliaId, atual.ComDoisFatores, ct);
+        return new RefreshResult(atual.UsuarioId, atual.FamiliaId, atual.ComDoisFatores, novo, expiresAt);
     }
 
     /// <summary>Logout: revoga a família do token apresentado (encerra só esta sessão/dispositivo).</summary>
@@ -87,6 +89,12 @@ public sealed partial class RefreshTokenService(VolumoDbContext db, TimeProvider
     public Task RevokeFamilyAsync(Guid familiaId, CancellationToken ct) =>
         db.TokensDeAtualizacao
             .Where(t => t.FamiliaId == familiaId && t.RevogadoEm == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevogadoEm, clock.GetUtcNow()), ct);
+
+    /// <summary>Encerra todas as sessões do usuário em todos os dispositivos (ex.: senha redefinida).</summary>
+    public Task RevokeAllForUserAsync(Guid usuarioId, CancellationToken ct) =>
+        db.TokensDeAtualizacao
+            .Where(t => t.UsuarioId == usuarioId && t.RevogadoEm == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevogadoEm, clock.GetUtcNow()), ct);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Refresh token reutilizado; família {FamiliaId} revogada.")]

@@ -11,8 +11,13 @@ public static class VolumoClaims
     public const string Role = "role";
     public const string TokenId = "jti";
 
-    /// <summary>Authentication Methods References (RFC 8176): "pwd" = senha; "mfa" virá com o 2FA.</summary>
+    /// <summary>Authentication Methods References (RFC 8176): "pwd" = senha; "mfa" = entrou também com segundo fator.</summary>
     public const string AuthenticationMethods = "amr";
+
+    public const string MultiFactor = "mfa";
+
+    public static Guid? UsuarioId(this System.Security.Claims.ClaimsPrincipal user) =>
+        Guid.TryParse(user.FindFirst(Subject)?.Value, out var id) ? id : null;
 }
 
 /// <summary>Emite o token de acesso (JWT HS256) de vida curta.</summary>
@@ -20,7 +25,7 @@ public sealed class AccessTokenIssuer(JwtSettings settings, TimeProvider clock)
 {
     private readonly JsonWebTokenHandler _handler = new();
 
-    public (string Token, DateTimeOffset ExpiresAt) Issue(Usuario usuario, IEnumerable<string> roles)
+    public (string Token, DateTimeOffset ExpiresAt) Issue(Usuario usuario, IEnumerable<string> roles, bool comDoisFatores)
     {
         ArgumentNullException.ThrowIfNull(usuario);
 
@@ -39,7 +44,7 @@ public sealed class AccessTokenIssuer(JwtSettings settings, TimeProvider clock)
                 [VolumoClaims.Subject] = usuario.Id.ToString(),
                 [VolumoClaims.TokenId] = Guid.NewGuid().ToString(),
                 [VolumoClaims.Role] = roles.ToArray(),
-                [VolumoClaims.AuthenticationMethods] = new[] { "pwd" },
+                [VolumoClaims.AuthenticationMethods] = comDoisFatores ? new[] { "pwd", VolumoClaims.MultiFactor } : new[] { "pwd" },
             },
         });
 
