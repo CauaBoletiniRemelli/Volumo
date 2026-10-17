@@ -1,0 +1,146 @@
+@page "/alunos"
+@attribute [Authorize(Roles = "Personal")]
+@using System.ComponentModel.DataAnnotations
+@using Volumo.Shared.Alunos
+@using Volumo.Shared.Convites
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+
+<PageTitle>Alunos · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <h1>Alunos</h1>
+    @if (_alunos is not null)
+    {
+        <p class="secundario"><span class="numero">@_alunos.Count</span> @(_alunos.Count == 1 ? "aluno ativo" : "alunos ativos")</p>
+    }
+</header>
+
+@if (!Sessao.ComDoisFatores)
+{
+    <div class="aviso pilha">
+        <p>Antes de ver seus alunos, ative a verificação em duas etapas. Leva um minuto.</p>
+        <a class="botao botao-principal" href="conta/2fa">Ativar agora</a>
+    </div>
+}
+else
+{
+    <div class="duas-colunas">
+        <section class="painel">
+            <div class="painel-cabecalho">
+                <h2>Ativos</h2>
+            </div>
+            @if (_alunos is null)
+            {
+                <p class="lista-vazia">@(_erro ?? "Carregando.")</p>
+            }
+            else if (_alunos.Count == 0)
+            {
+                <p class="lista-vazia">Nenhum aluno ainda. Mande o primeiro convite ao lado: o aluno recebe um link por e-mail e já entra vinculado a você.</p>
+            }
+            else
+            {
+                <ul class="lista">
+                    @foreach (var aluno in _alunos)
+                    {
+                        <li>
+                            <span>@aluno.Nome</span>
+                            <span class="secundario numero">desde @aluno.VinculadoDesde.ToLocalTime().ToString("dd/MM/yy")</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <aside class="pilha" style="--espaco: 24px">
+            <section class="painel">
+                <div class="painel-cabecalho"><h3>Convidar</h3></div>
+                <div class="painel-corpo">
+                    <EditForm Model="_form" OnValidSubmit="ConvidarAsync" class="formulario" FormName="convidar">
+                        <DataAnnotationsValidator />
+                        <div class="campo">
+                            <label class="rotulo" for="email-aluno">E-mail do aluno</label>
+                            <InputText id="email-aluno" type="email" autocomplete="off" @bind-Value="_form.Email" />
+                            <ValidationMessage For="() => _form.Email" />
+                        </div>
+                        @if (_mensagemConvite is not null)
+                        {
+                            <p class="aviso @(_conviteOk ? "aviso-ok" : "aviso-erro")" role="status">@_mensagemConvite</p>
+                        }
+                        <button type="submit" class="botao botao-principal botao-largo" disabled="@_enviando">Enviar convite</button>
+                    </EditForm>
+                </div>
+            </section>
+
+            @if (_pendentes is { Count: > 0 })
+            {
+                <section class="painel">
+                    <div class="painel-cabecalho"><h3>Aguardando</h3></div>
+                    <ul class="lista">
+                        @foreach (var convite in _pendentes)
+                        {
+                            <li>
+                                <span class="convite-email">@convite.Email</span>
+                                <button class="botao botao-texto" @onclick="() => RevogarAsync(convite.Id)">Cancelar</button>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    private readonly Formulario _form = new();
+    private List<AlunoResumo>? _alunos;
+    private List<ConviteEnviado>? _pendentes;
+    private string? _erro;
+    private string? _mensagemConvite;
+    private bool _conviteOk;
+    private bool _enviando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Sessao.ComDoisFatores)
+        {
+            await CarregarAsync();
+        }
+    }
+
+    private async Task CarregarAsync()
+    {
+        var alunos = await Api.GetAsync<List<AlunoResumo>>("alunos");
+        var convites = await Api.GetAsync<List<ConviteEnviado>>("convites");
+        _alunos = alunos.Valor;
+        _erro = alunos.Erro;
+        _pendentes = convites.Valor?.Where(c => c.Situacao == "Pendente").ToList();
+    }
+
+    private async Task ConvidarAsync()
+    {
+        _enviando = true;
+        var email = _form.Email.Trim();
+        var resultado = await Api.PostAsync<ConviteEnviado>("convites", new NovoConvite(email));
+        _enviando = false;
+        _conviteOk = resultado.Ok;
+        _mensagemConvite = resultado.Ok ? $"Convite enviado para {email}. O link vale por 7 dias." : resultado.Erro;
+        if (resultado.Ok)
+        {
+            _form.Email = string.Empty;
+            await CarregarAsync();
+        }
+    }
+
+    private async Task RevogarAsync(Guid id)
+    {
+        await Api.PostAsync($"convites/{id}/revogar");
+        await CarregarAsync();
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Informe o e-mail."), EmailAddress(ErrorMessage = "E-mail inválido.")]
+        public string Email { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+
+@* App logado. No computador, navegação à esquerda; no celular, barra inferior ao alcance do polegar. *@
+<div class="app">
+    <nav class="app-nav" aria-label="Principal">
+        <div class="app-nav-marca"><Marca /></div>
+        <AuthorizeView Roles="Personal">
+            <NavLink class="app-link" href="alunos">Alunos</NavLink>
+        </AuthorizeView>
+        <AuthorizeView Roles="Aluno">
+            <NavLink class="app-link" href="treinos">Treinos</NavLink>
+        </AuthorizeView>
+        <NavLink class="app-link" href="conta">Conta</NavLink>
+    </nav>
+
+    <main class="app-conteudo">
+        @Body
+    </main>
+</div>

@@ -84,6 +84,9 @@ public static class AuthSetup
             .AddPolicy(Policies.Aluno, policy => policy
                 .RequireRole(Papeis.Aluno)
                 .RequireAssertion(ActiveAccount))
+            .AddPolicy(Policies.ContaAtiva, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(ActiveAccount))
             .AddPolicy(Policies.Admin, policy => policy
                 .RequireRole(Papeis.Admin)
                 .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor)
@@ -91,6 +94,9 @@ public static class AuthSetup
             .AddPolicy(Policies.MultiFactor, policy => policy
                 .RequireAuthenticatedUser()
                 .RequireClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor));
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<IContextoDeAcesso, HttpAccessContext>();
 
         services.AddSingleton<AccessTokenIssuer>();
         services.AddSingleton<TwoFactorChallenge>();

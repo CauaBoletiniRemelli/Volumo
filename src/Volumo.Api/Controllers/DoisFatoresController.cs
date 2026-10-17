@@ -15,6 +15,7 @@ namespace Volumo.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("auth/2fa")]
+[Authorize]
 public sealed class DoisFatoresController(
     UserManager<Usuario> userManager,
     SessionIssuer sessions,

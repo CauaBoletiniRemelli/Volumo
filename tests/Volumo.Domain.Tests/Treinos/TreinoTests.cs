@@ -140,6 +140,41 @@ public sealed class TreinoTests
     }
 
     [Fact]
+    public void Substituir_itens_troca_tudo_na_ordem_recebida()
+    {
+        var treino = CriarTreino();
+        treino.AdicionarItem(Dados.NovoId(), Dados.Series(2));
+        var a = Dados.NovoId();
+        var b = Dados.NovoId();
+
+        treino.SubstituirItens([new DefinicaoDeItem(a, Dados.Series(3), "Pausa de 2 s"), new DefinicaoDeItem(b, Dados.Series(1))]);
+
+        treino.Itens.Select(i => (i.ExercicioId, i.Ordem, i.Series.Count)).ShouldBe([(a, 1, 3), (b, 2, 1)]);
+        treino.Itens[0].Observacao.ShouldBe("Pausa de 2 s");
+    }
+
+    [Fact]
+    public void Substituir_com_item_invalido_nao_muda_nada()
+    {
+        var treino = CriarTreino();
+        var original = treino.AdicionarItem(Dados.NovoId(), Dados.Series(2));
+
+        Should.Throw<RegraDeNegocioException>(() =>
+            treino.SubstituirItens([new DefinicaoDeItem(Dados.NovoId(), Dados.Series(1)), new DefinicaoDeItem(Dados.NovoId(), [])]));
+
+        treino.Itens.Single().Id.ShouldBe(original.Id);
+    }
+
+    [Fact]
+    public void Substituir_itens_de_treino_inativo_falha()
+    {
+        var treino = CriarTreino();
+        treino.Inativar(Dados.Agora);
+
+        Should.Throw<RegraDeNegocioException>(() => treino.SubstituirItens([]));
+    }
+
+    [Fact]
     public void Treino_montado_pelo_aluno_nao_tem_personal()
     {
         Treino.CriarPeloAluno(Dados.NovoId(), _alunoId, "Meu treino").PersonalId.ShouldBeNull();

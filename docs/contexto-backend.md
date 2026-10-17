@@ -29,8 +29,8 @@ Use este arquivo junto com o `CLAUDE.md` (planejamento do produto) para retomar 
 | 1. Proteções da API | Cabeçalhos de segurança, HSTS, CORS, rate limiting, ProblemDetails, limite de requisição, Serilog, health check | ✅ Feito |
 | 2. Domínio + persistência | Entidades, EF Core, migrations, LocalDB, IDs GUID v7 gerados no cliente (sincronização offline) | ✅ Feito (16/10) |
 | 3. Autenticação | **3.1** Identity, cadastro de personal, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo, logout, login obrigatório por padrão · **3.2** 2FA obrigatório para personal, recuperação de senha, Turnstile · **3.3** convite e cadastro de aluno, reativação de conta, suspensão | ✅ Feito (16/10) |
-| 4. Autorização contra IDOR | Roles e policies (já feitas na fase 3), autorização por recurso, filtros globais do EF por dono, 404 para recurso alheio | ⏭️ **Próxima** |
-| 5. Funcionalidades do MVP | CRUD de templates e treinos, atribuição ao aluno, registro de sessão com idempotência, painel do personal (último treino, sumido há mais de 5 dias, estagnado) | Pendente |
+| 4. Autorização contra IDOR | Roles e policies (já feitas na fase 3), autorização por recurso, filtros globais do EF por dono, 404 para recurso alheio | ✅ Feito (16/10) |
+| 5. Funcionalidades do MVP | **5.1** catálogo de exercícios, templates, treinos, atribuição ao aluno, alunos e encerramento de vínculo · **5.2** registro de sessão com sincronização offline e idempotência · **5.3** painel do personal (último treino, sumido há mais de 5 dias, estagnado) | 5.1 ✅ · 5.2 ✅ (16/10) · 5.3 ⏭️ **Próxima** |
 | 6. Cobrança + LGPD | Webhook do gateway com validação de assinatura e idempotência, consentimento, exportação e exclusão de conta | Pendente |
 | 7. CI/CD | GitHub Actions (build, testes, `dotnet list package --vulnerable`, CodeQL, Dependabot, OWASP ZAP) e deploy no MonsterASP.NET | Pendente |
 
@@ -124,11 +124,13 @@ Volumo.slnx
 │   │   │                                PortugueseIdentityErrorDescriber
 │   │   ├── Errors/BusinessRuleExceptionHandler.cs → RegraDeNegocioException vira 400 com a mensagem do domínio
 │   │   ├── Controllers/               → AuthController (/auth), DoisFatoresController (/auth/2fa), ContaController (/conta),
-│   │   │                                ConvitesController (/convites), AdminController (/admin/usuarios)
+│   │   │                                ConvitesController (/convites), AdminController (/admin/usuarios),
+│   │   │                                ExerciciosController, TemplatesController, TreinosController, AlunosController
+│   │   ├── Treinos/PlanMapper.cs      → contratos ↔ domínio (treinos/templates), valida exercícios visíveis
 │   │   ├── appsettings.json
 │   │   └── appsettings.Development.json
-│   ├── Volumo.Client           → Blazor WebAssembly (ainda é o template; NÃO é PWA ainda: falta manifest/service worker)
-│   ├── Volumo.Shared           → DTOs da API com DataAnnotations: Autenticacao/, Convites/, Admin/
+│   ├── Volumo.Client           → Blazor WebAssembly PWA (ver seção "Front")
+│   ├── Volumo.Shared           → DTOs da API com DataAnnotations: Autenticacao/, Convites/, Admin/, Treinos/, Alunos/
 │   ├── Volumo.Domain           → Comum/ (Entidade, Guarda, RegraDeNegocioException), Usuarios/, Vinculos/,
 │   │                             Exercicios/, Treinos/, Sessoes/
 │   └── Volumo.Infrastructure
@@ -140,7 +142,8 @@ Volumo.slnx
 │           ├── VolumoDbContext.cs        → IdentityDbContext + IDataProtectionKeyContext
 │           ├── VolumoDbContextFactory.cs → usada só pelo dotnet ef
 │           ├── Configuracoes/            → IEntityTypeConfiguration por entidade (+ seed dos papéis)
-│           └── Migrations/               → Inicial, InativacaoEAnonimizacao, Autenticacao, DoisFatores, Suspensao
+│           └── Migrations/               → Inicial, InativacaoEAnonimizacao, Autenticacao, DoisFatores, Suspensao,
+│                                            CatalogoDeExercicios
 └── tests/
     ├── Directory.Build.props   → pacotes e usings comuns dos testes (xUnit v3, Shouldly, cobertura)
     ├── Volumo.Domain.Tests     → regras das entidades (sem banco)
@@ -176,6 +179,64 @@ Volumo.slnx
 | `POST /convites/aceitar` | `Aluno` | `{token}`: aluno que já tem conta. Convite para outro e-mail → 403; personal atual ativo → 400 ("encerre o vínculo"); personal atual inativo → troca automática |
 | `POST /admin/usuarios/{id}/suspender` | `Admin` (com 2FA) | `{motivo}` → suspende, troca o `SecurityStamp` e encerra todas as sessões; a si mesmo → 400; inexistente → 404 |
 | `POST /admin/usuarios/{id}/remover-suspensao` | `Admin` | 204 |
+
+### Proteção contra IDOR (fase 4)
+
+- **Filtro de dono** (`FiltrosDeConsulta.Dono`, filtro nomeado do EF 10, separado do `Ativos`) em `VolumoDbContext.ConfigurarFiltrosDeDono`. Lê o usuário de `IContextoDeAcesso` (na API, `HttpAccessContext`, a partir do token) a cada consulta:
+
+  | Entidade | Personal vê | Aluno vê |
+  |---|---|---|
+  | `PerfilPersonal` | o próprio | os personais com quem tem ou teve vínculo |
+  | `PerfilAluno` | os alunos com vínculo **ativo** | o próprio |
+  | `VinculoPersonalAluno`, `ConviteAluno` | os seus | os seus |
+  | `Exercicio` | catálogo + os próprios | catálogo + os dos personais com quem tem ou teve vínculo |
+  | `TemplateTreino` | os próprios | nenhum |
+  | `Treino`, `SessaoTreino`, `RegistroSerie` | os dos alunos com vínculo **ativo** | os próprios |
+
+- **Sem usuário autenticado não há filtro de dono** (rotas anônimas de `/auth`, tarefas do sistema, testes de persistência com `BancoDeTestes.NovoContexto()`). Por isso as rotas anônimas são poucas e aprovadas por teste.
+- **Desligar o filtro é sempre explícito** (`IgnoreQueryFilters([FiltrosDeConsulta.Dono])`) e só em: convite lido pelo token (é de outro personal), checagem de CREF duplicado, status da própria conta (`SessionIssuer.IsInactiveAsync`) e `ExclusaoDeConta`.
+- **Padrão das rotas:** recurso invisível → 404; visível mas sem permissão de alterar (catálogo, treino de outro prescritor) → 403.
+- **Teste de arquitetura** (`AuthorizationRulesTests`): toda ação de controller declara `[Authorize]` (com ou sem política) ou `[AllowAnonymous]`; anônimo só em `AuthController` e `ConvitesController.Preview`.
+- Testes: `Persistencia/FiltrosDeDonoTests` (cenário com dois personais, alunos ativos e ex-aluno, consultando como cada um) + matrizes 401/403/404 por rota.
+
+### Sessões de treino e sincronização offline (fase 5.2)
+
+| Rota | Acesso | O que faz |
+|---|---|---|
+| `POST /sessoes/sincronizar` | `Aluno` | Lote de até 20 sessões `{id, treinoId, iniciadaEm, finalizadaEm, series[{id, exercicioId, repeticoes, cargaKg, rir, realizadaEm}]}`. Sempre 200 com o resultado **por sessão**: `Sincronizada` (gravada ou já estava) ou `Recusada` + motivo (o app para de reenviar e avisa) |
+| `GET /sessoes` | `Aluno` | Últimas 50 sessões: treino, início/fim, nº de séries, volume (reps × carga) |
+| `GET /sessoes/{id}` | `ContaAtiva` | Detalhe com as séries e o nome dos exercícios (aluno dono ou personal com vínculo ativo) |
+| `GET /alunos/{id}/sessoes` | `Personal` | Histórico do aluno com vínculo ativo; outro → 404 |
+
+- `SessionSynchronizer`: cada sessão é independente (uma recusada não derruba as outras) e gravada no próprio `SaveChanges`.
+  - Recusa: horário mais de 5 min no futuro; Id de sessão que já existe e é de outro aluno (sem dizer de quem); treino que não é do aluno; exercício que ele não enxerga; regras do domínio (Id não v7, série antes do início, sessão finalizada...).
+  - Treino arquivado e exercício inativado depois de começar offline continuam aceitos.
+  - Conflito de gravação (dois aparelhos mandando a mesma sessão ao mesmo tempo): limpa e tenta de novo uma vez pelo caminho idempotente.
+- Testes: `Sessoes/SincronizacaoDeSessoesTests` (reenvio não duplica, sessão chegando aos poucos, lote misto, dados de outra pessoa, matriz 401/403/404, lote acima de 20 → 400).
+
+### Exercícios, templates e treinos (fase 5.1)
+
+| Rota | Acesso | O que faz |
+|---|---|---|
+| `GET /exercicios?busca=&grupo=` | `ContaAtiva` | Catálogo + exercícios visíveis (até 500), por nome |
+| `POST /exercicios` | `Personal` | `{nome, grupoMuscular}` → exercício personalizado (201) |
+| `PUT /exercicios/{id}` · `POST /exercicios/{id}/inativar` | `Personal` | Só os próprios; catálogo → 403; de outro → 404 |
+| `GET /templates` · `GET /templates/{id}` | `Personal` | Próprios (detalhe com nomes dos exercícios, ordem e séries) |
+| `POST /templates` · `PUT /templates/{id}` | `Personal` | Plano inteiro `{nome, itens[{exercicioId, observacao, series[...]}]}`; a gravação **substitui** tudo. Exercício inexistente/invisível → 400; série inválida → 400 com a mensagem do domínio |
+| `POST /templates/{id}/inativar` | `Personal` | Some da lista e não pode mais ser atribuído |
+| `POST /templates/{id}/atribuir` | `Personal` | `{alunoId}` (vínculo ativo) → treino independente (201) |
+| `GET /alunos` | `Personal` | Alunos com vínculo ativo |
+| `GET /alunos/{id}/treinos` · `POST /alunos/{id}/treinos` | `Personal` | Treinos do aluno / montar treino direto, sem template |
+| `POST /alunos/{id}/encerrar-vinculo` | `Personal` | Encerra; o personal deixa de ver os dados do aluno, que mantém tudo |
+| `GET /treinos` | `Aluno` | Treinos ativos do aluno (tela principal) |
+| `GET /treinos/{id}` | `ContaAtiva` | Detalhe (aluno dono ou personal com vínculo ativo) |
+| `PUT /treinos/{id}` · `POST /treinos/{id}/inativar` | `Personal` | Só quem prescreveu, com vínculo ativo; outro → 404; visível mas de outro prescritor → 403 |
+| `POST /conta/vinculo/encerrar` | `Aluno` | O aluno encerra o vínculo com o personal atual |
+
+- **Catálogo inicial:** 42 exercícios em `CatalogoInicial` (Infrastructure), semeados pela migration `CatalogoDeExercicios` com Ids fixos. Só acrescentar no fim; para tirar, inativar por migration.
+- `PlanoDeTreino.SubstituirItens` (domínio) valida tudo antes de trocar: se um item for inválido, nada muda.
+- Enums nos contratos (`GrupoMuscular`, `TipoDeSerie`) trafegam como texto (`JsonStringEnumConverter` no próprio enum do Shared).
+- Exercício inativado depois continua aparecendo pelo nome nos treinos que o usam; se ficar invisível, aparece como "Exercício indisponível".
 
 **Contas, convites e suspensão (fase 3.3):**
 - **Conta inativa:** login permitido, mas o token leva a claim `conta_inativa`; as políticas `Personal`, `Aluno` e `Admin` recusam essa claim. Só `/conta` e `/conta/reativar` funcionam. Conta inativa = tem perfil e todos os perfis estão inativos (calculado a cada emissão de token, também na renovação).
@@ -272,7 +333,9 @@ Outros ajustes:
 
 Rodar tudo: **`dotnet test --solution Volumo.slnx`** (o `--solution` é necessário com o executor novo).
 
-Situação atual: **226 testes, todos passando** (~15 s). Precisa do LocalDB instalado.
+Situação atual: **261 testes, todos passando** (~20 s). Precisa do LocalDB instalado.
+
+- **Cuidado com ordem de GUID em teste:** o SQL Server ordena `uniqueidentifier` pelos últimos bytes; o .NET, pelos primeiros. Não compare lista ordenada no banco com lista ordenada no .NET: use `ShouldBe(..., ignoreOrder: true)`.
 
 ### Volumo.Domain.Tests
 - Uma classe por entidade/área (`PerfisTests`, `ConviteAlunoTests`, `VinculoPersonalAlunoTests`, `ExercicioTests`, `SerieTests`, `TreinoTests`, `SessaoTreinoTests`).
@@ -293,6 +356,9 @@ Situação atual: **226 testes, todos passando** (~15 s). Precisa do LocalDB ins
 - `Support/ContasDeTeste`: cadastrar, confirmar, entrar, renovar e sair pela API, como o app faria.
 - `Auth/`: `CadastroTests`, `LoginTests` (resposta igual para e-mail inexistente e senha errada, bloqueio, cookie protegido, limite de tentativas), `SessaoTests` (rotação, reuso derruba a família, logout por dispositivo, token vencido, exclusão de conta), `TokenDeAcessoTests` (sem token, adulterado, outra chave, vencido, `alg: none`), `DoisFatoresTests` (personal sem 2FA barrado, ativação troca a sessão, desafio, código errado/adulterado, bloqueio, códigos de recuperação), `RecuperacaoDeSenhaTests` (sempre 202, link de uso único, sessões derrubadas, desbloqueio, 2FA continua valendo), `TurnstileTests` (formulários barrados; verificador testado com `HttpMessageHandler` falso, sem rede), `ContaInativaESuspensaTests` (inativar com senha, conta inativa só reativa, suspensão e matriz do admin).
 - `Convites/`: `ConvitesTests` (envio, listagem só do dono, reenvio invalida o link anterior, revogação, **matriz 401/403/404**, consulta, hash no banco) e `AceiteDeConviteTests` (cadastro pelo convite, uso único, vencido, senha fraca não consome, e-mail com conta → 409, personal inativo, troca de personal, personal ativo bloqueia, e-mail diferente → 403).
+- `Treinos/`: `ExerciciosTests`, `TemplatesTests`, `TreinosTests` (com matrizes 401/403/404, atribuição, encerramento de vínculo pelos dois lados).
+- `Persistencia/FiltrosDeDonoTests`: filtros de dono consultando como cada usuário (`BancoDeTestes.NovoContexto(usuarioId)`).
+- Atalhos em `ContasDeTeste`: `ExercicioDoCatalogoAsync`, `Plano(...)`, `IdCriadoAsync`.
 - `Support/ContasDeTeste` também cria personal com 2FA, aluno via convite e admin (`TornarAdminAsync`).
 - `Jornadas/JornadaDoPersonalTests`: cadastro → confirmação → login → rota protegida → renovação → logout; e personal configurando o 2FA e entrando com o código.
 - `Support/Totp`: gera códigos TOTP como um aplicativo autenticador. `Support/VerificacaoHumanaFalsa`: substitui o Turnstile (`TokenAprovado`/`TokenReprovado`). `Support/TestPoliciesController`: rota `/__test/politicas/personal` para testar a política de personal.
@@ -307,6 +373,7 @@ Situação atual: **226 testes, todos passando** (~15 s). Precisa do LocalDB ins
 - O Domain não depende de Api, Infrastructure, Shared, Client, ASP.NET Core nem EF Core.
 - O Shared não depende do servidor, porque roda no navegador.
 - A Infrastructure não depende da Api.
+- `AuthorizationRulesTests`: toda ação declara quem pode acessar; rota anônima só onde foi aprovada.
 
 ### Convenções de teste
 - xUnit v3 (4.x): sempre passar `TestContext.Current.CancellationToken` nas chamadas assíncronas (o analisador exige, e aviso vira erro).
@@ -336,14 +403,12 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 
 ### Lembretes da autenticação
 - Rotas de personal **precisam** usar `[Authorize(Policy = Policies.Personal)]` (2FA obrigatório e conta ativa dependem disso); de aluno, `Policies.Aluno`. Toda rota nova entra na matriz de testes 401/403/404.
-- Rota para o aluno **encerrar o vínculo** com o personal (hoje só existe a troca automática quando o personal está inativo).
 - Escolher o **provedor de e-mail** de produção antes do primeiro deploy.
 - Limpeza periódica de refresh tokens vencidos/revogados (tabela cresce a cada renovação).
 
-### Para a fase 4/5
-- Filtros globais do EF por dono (o mapeamento de `RegraDeNegocioException` → 400 já existe).
-- Violação do índice `UX_VinculosPersonalAluno_AlunoAtivo` → mensagem amigável ("este aluno já tem um personal").
-- Seed do catálogo de exercícios.
+### Para a fase 5 em diante
+- Consultas de listagem sem paginação (limites fixos de 200–500): paginar quando os volumes crescerem.
+- Toda entidade nova com dono precisa de regra em `ConfigurarFiltrosDeDono` e de linha nos `FiltrosDeDonoTests`.
 - **Ideias de produto que afetam o modelo de `Exercicio`** (registradas em 16/10/2026, fora do MVP; ver seção 1 do CLAUDE.md):
   - **Vídeo de execução:** URL do vídeo (storage com URL assinada ou plataforma externa) no exercício do catálogo; personal pode ter vídeo próprio nos exercícios personalizados.
   - **Substituição por aparelho indisponível:** o exercício precisa de **equipamento** (máquina, halteres, barra, polia, peso corporal...), **padrão de movimento** (empurrar horizontal, agachar...) e uma relação de **variações livres** e **similares**. Na sessão, o `RegistroSerie` passa a guardar o exercício executado e o prescrito originalmente, para o personal ver a troca. É a mesma base do "modo academia lotada".
@@ -355,15 +420,46 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 - **Atualizar SDK/runtime para 10.0.13** (a máquina tem runtime 10.0.12; os pacotes já estão em 10.0.13) e ajustar `global.json` se o SDK mudar de feature band.
 - GUID v7 no SQL Server: o SQL Server ordena `uniqueidentifier` pelos últimos bytes, então v7 não é sequencial para o índice clusterizado. Irrelevante no MVP; se as tabelas de registros crescerem muito, avaliar PK não clusterizada.
 - CI no GitHub: usar runner **Windows**, que tem LocalDB, ou parametrizar a connection string.
-- Client: transformar em PWA (manifest + service worker), trabalho do front.
 - Commits: feitos pelo usuário (o Claude não faz commits; regra no CLAUDE.md).
 
 ---
 
-## 7. Próximo passo
+## 7. Front (Volumo.Client)
 
-**Fase 4: autorização contra IDOR**
-1. Filtros globais do EF por dono (filtro nomeado separado do `Ativos`): personal enxerga só os próprios templates, exercícios personalizados, convites e os alunos com vínculo ativo; aluno enxerga só os próprios treinos e sessões.
-2. Serviço de "contexto do usuário" (Id e papel da requisição) usado pelos filtros.
-3. Padrão de rota: recurso de outro dono → 404; teste da matriz 401/403/404 para cada rota.
-4. Teste de arquitetura: todo controller (fora `/auth`) declara uma política explícita.
+Blazor WebAssembly PWA, **sem MudBlazor** (decisão de 16/10/2026): componentes com CSS próprio, seguindo o briefing de design do usuário (nada de estética "gerada por IA": sem gradientes, emojis, glassmorphism, cards fofos, frases de marketing).
+
+**Direção visual:** técnico e sóbrio, cara de ferramenta e não de site.
+- Paleta do CLAUDE.md (seção 7) em variáveis CSS (`wwwroot/css/app.css`): fundo `#0F1115`, superfícies `#1C1F26` com borda de 1px, limão `#C6F135` só na ação principal e no número que importa, laranja `#FF6B2C` só para recorde; um vermelho suave só para mensagens de erro.
+- Fontes hospedadas no app (`wwwroot/fonts`, licença OFL, @fontsource 5.3.0): **Barlow Condensed** (títulos em caixa-alta, números grandes), **IBM Plex Sans** (texto), **IBM Plex Mono** com algarismos tabulares (cargas, tempos, códigos). Sem Google Fonts: funciona offline e não manda o IP ao Google.
+- Celular: uma coluna, barra de navegação inferior, alvos de toque de 48 px (uso com uma mão). Computador: navegação à esquerda (232 px) e área de trabalho; telas de entrada em duas colunas assimétricas (texto à esquerda, formulário à direita, separados por uma linha fina).
+- Foco visível em limão para teclado; `prefers-reduced-motion` desliga animações; sem sombras nem cantos muito arredondados (raio de 3 px).
+
+**Estrutura:**
+```
+src/Volumo.Client
+├── Program.cs                 → config, sessão, ApiVolumo, autorização
+├── Infra/
+│   ├── SessaoDoUsuario.cs     → AuthenticationStateProvider; token só em memória; restaura pelo cookie ao abrir; renova perto de vencer (uma renovação por vez)
+│   ├── AnexarToken.cs         → põe o Bearer, inclui o cookie, renova antes de vencer; 401 → encerra a sessão
+│   ├── ApiVolumo.cs           → chamadas com Resultado<T> (mensagem do ProblemDetails pronta para mostrar; sem rede → aviso de conexão)
+│   └── ConfiguracaoDoFront.cs → Api:BaseUrl e Turnstile:SiteKey (wwwroot/appsettings*.json, público)
+├── Layout/                    → EntradaLayout (SectionOutlet "entrada-lado" para o texto da coluna esquerda) e AppLayout
+├── Componentes/               → Marca, VerificacaoHumana (Turnstile via js/volumo.js), RedirecionarParaEntrar, ContaPausada
+├── Pages/Entrada/             → Entrar (senha → código 2FA → código de recuperação), Cadastro (personal), ConfirmarEmail, EsqueciSenha, RedefinirSenha, AceitarConvite
+├── Pages/Conta/               → Conta (dados, sair), DoisFatores (chave + link otpauth, códigos de recuperação)
+├── Pages/Personal/Alunos.razor → alunos ativos + convidar + convites aguardando
+├── Pages/Aluno/MeusTreinos.razor → lista de treinos (detalhe e sessão na próxima etapa)
+└── wwwroot/                   → index.html, css/app.css, fonts/, js/volumo.js, manifest.webmanifest, service-worker(.published).js, ícones
+```
+
+- **Início (`/`):** personal sem 2FA → `/conta/2fa`; personal → `/alunos`; aluno → `/treinos`; conta pausada → tela de reativação.
+- **Login com `?voltar=`** só aceita caminho do próprio app (contra redirecionamento aberto).
+- **PWA:** `ServiceWorkerAssetsManifest` no csproj; a versão publicada guarda o app no aparelho (os dados da API não passam pelo cache). Ícones 192/512 (V limão sobre grafite) gerados por script; trocar quando houver logo definitivo.
+- **Rodar local:** API (`https://localhost:7010`) e Client (`https://localhost:7184`) juntos (Multiple startup projects no Visual Studio). Precisa de `dotnet dev-certs https --trust`. O CORS da API já libera o Client em dev; o cookie do refresh token funciona porque as portas do mesmo host contam como o mesmo site.
+- **Ainda não verificado visualmente:** as telas compilam e o PWA é gerado na publicação, mas não houve teste no navegador nesta sessão. Conferir no navegador e ajustar.
+- Pendências do front: QR code na tela do 2FA (hoje: chave em texto + link `otpauth://`); CSP do site estático (no hospedeiro, com `script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com` e `connect-src` da API); testes de componentes (bUnit) e E2E (Playwright).
+
+## 8. Próximo passo
+
+1. **Front, etapa 2:** construtor de treino do personal (templates e treino do aluno, com busca de exercícios) e tela de treino do aluno: séries com carga e repetições em números grandes, cronômetro de descanso automático e **registro offline** (fila no IndexedDB, enviada em lote para `/sessoes/sincronizar` quando houver internet).
+2. **Fase 5.3: painel do personal** (último treino de cada aluno, sumido há mais de 5 dias, estagnado numa carga), já com a tela no front.

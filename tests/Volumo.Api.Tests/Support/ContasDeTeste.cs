@@ -112,6 +112,28 @@ internal static class ContasDeTeste
         return await db.Users.Where(u => u.NormalizedEmail == email.ToUpperInvariant()).Select(u => u.Id).SingleAsync(Ct);
     }
 
+    /// <summary>Id de um exercício do catálogo semeado, buscando pelo nome.</summary>
+    public static async Task<Guid> ExercicioDoCatalogoAsync(HttpClient client, string token, string nome = "Supino reto com barra")
+    {
+        using var response = await EnviarAsync(client, HttpMethod.Get, $"/exercicios?busca={Uri.EscapeDataString(nome)}", token);
+        var exercicios = await response.Content.ReadFromJsonAsync<List<Volumo.Shared.Treinos.ExercicioResumo>>(Ct);
+        return exercicios!.First(e => e.Nome == nome).Id;
+    }
+
+    /// <summary>Plano com um item por exercício, cada um com <paramref name="series"/> séries de 8–12 repetições.</summary>
+    public static Volumo.Shared.Treinos.PlanoDeTreinoEntrada Plano(string nome, IEnumerable<Guid> exercicios, int series = 3, decimal? carga = 20m) =>
+        new(nome, [.. exercicios.Select(id => new Volumo.Shared.Treinos.ItemDoPlano(
+            id,
+            [.. Enumerable.Range(0, series).Select(_ => new Volumo.Shared.Treinos.SeriePrescrita(Volumo.Shared.Treinos.TipoDeSerie.Trabalho, 8, 12, 90, carga))],
+            null))]);
+
+    /// <summary>Lê o Id de uma resposta 201 com <c>RecursoCriado</c>.</summary>
+    public static async Task<Guid> IdCriadoAsync(HttpResponseMessage response)
+    {
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        return (await response.Content.ReadFromJsonAsync<Volumo.Shared.Treinos.RecursoCriado>(Ct))!.Id;
+    }
+
     /// <summary>Requisição com token de acesso e/ou cookie do refresh token explícitos.</summary>
     public static async Task<HttpResponseMessage> EnviarAsync(
         HttpClient client, HttpMethod metodo, string caminho, string? tokenDeAcesso, string? cookie = null, object? corpo = null)

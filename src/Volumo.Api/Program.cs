@@ -3,6 +3,8 @@ using Serilog;
 using Volumo.Api.Auth;
 using Volumo.Api.Errors;
 using Volumo.Api.Security;
+using Volumo.Api.Sessoes;
+using Volumo.Api.Treinos;
 using Volumo.Infrastructure;
 using Volumo.Infrastructure.Persistencia;
 
@@ -37,6 +39,9 @@ builder.Services.AddVolumoCors(builder.Configuration);
 builder.Services.AddVolumoRateLimiting(builder.Configuration);
 builder.Services.AddVolumoInfrastructure(builder.Configuration.GetConnectionString(DependencyInjection.ConnectionStringName));
 builder.Services.AddVolumoAuth(builder.Configuration, builder.Environment);
+builder.Services.AddScoped<PlanMapper>();
+builder.Services.AddScoped<SessionSynchronizer>();
+builder.Services.AddScoped<SessionQueries>();
 builder.Services.AddHealthChecks().AddDbContextCheck<VolumoDbContext>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

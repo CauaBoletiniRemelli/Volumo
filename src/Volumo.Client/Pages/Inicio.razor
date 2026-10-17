@@ -1,0 +1,40 @@
+@page "/"
+@attribute [Authorize]
+@inject SessaoDoUsuario Sessao
+@inject NavigationManager Navegacao
+
+<PageTitle>Volumo</PageTitle>
+
+@* Leva cada conta para a tela certa: personal sem 2FA configura primeiro; conta pausada vê a reativação. *@
+<AuthorizeView>
+    @if (Sessao.ContaInativa)
+    {
+        <ContaPausada />
+    }
+</AuthorizeView>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? Autenticacao { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var usuario = (await Autenticacao!).User;
+        if (Sessao.ContaInativa)
+        {
+            return;
+        }
+
+        if (usuario.IsInRole("Personal"))
+        {
+            Navegacao.NavigateTo(Sessao.ComDoisFatores ? "alunos" : "conta/2fa", replace: true);
+        }
+        else if (usuario.IsInRole("Aluno"))
+        {
+            Navegacao.NavigateTo("treinos", replace: true);
+        }
+        else
+        {
+            Navegacao.NavigateTo("conta", replace: true);
+        }
+    }
+}

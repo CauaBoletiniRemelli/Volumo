@@ -1,0 +1,45 @@
+@page "/treinos"
+@attribute [Authorize(Roles = "Aluno")]
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+<PageTitle>Treinos · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <h1>Treinos</h1>
+</header>
+
+@if (_treinos is null)
+{
+    <p class="secundario">@(_erro ?? "Carregando.")</p>
+}
+else if (_treinos.Count == 0)
+{
+    <div class="painel painel-corpo">
+        <p>Seu personal ainda não mandou nenhum treino. Assim que ele montar, aparece aqui.</p>
+    </div>
+}
+else
+{
+    <ul class="lista painel">
+        @foreach (var treino in _treinos)
+        {
+            <li>
+                <span class="treino-nome">@treino.Nome</span>
+                <span class="secundario"><span class="numero">@treino.QuantidadeDeExercicios</span> exercícios</span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<TreinoResumo>? _treinos;
+    private string? _erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Api.GetAsync<List<TreinoResumo>>("treinos");
+        _treinos = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+}

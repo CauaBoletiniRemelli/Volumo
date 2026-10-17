@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,9 +10,10 @@ using Volumo.Shared.Autenticacao;
 
 namespace Volumo.Api.Controllers;
 
-/// <summary>A própria conta. Sem [AllowAnonymous]: a política padrão exige login.</summary>
+/// <summary>A própria conta. Qualquer conta logada, inclusive inativa (para poder reativar).</summary>
 [ApiController]
 [Route("conta")]
+[Authorize]
 public sealed class ContaController(
     UserManager<Usuario> userManager,
     VolumoDbContext db,
@@ -86,6 +88,26 @@ public sealed class ContaController(
         await db.SaveChangesAsync(ct);
         var comDoisFatores = User.HasClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor);
         return await sessions.AccessTokenAsync(usuario, comDoisFatores, ct);
+    }
+
+    /// <summary>
+    /// O aluno encerra o acompanhamento com o personal atual (por exemplo, para aceitar o convite de
+    /// outro). Os treinos e o histórico continuam com o aluno.
+    /// </summary>
+    [HttpPost("vinculo/encerrar")]
+    [Authorize(Policy = Policies.Aluno)]
+    public async Task<IActionResult> EndLink(CancellationToken ct)
+    {
+        var alunoId = User.UsuarioId()!.Value;
+        var vinculo = await db.VinculosPersonalAluno.SingleOrDefaultAsync(v => v.AlunoId == alunoId && v.EncerradoEm == null, ct);
+        if (vinculo is null)
+        {
+            return NotFound();
+        }
+
+        vinculo.Encerrar(clock.GetUtcNow());
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     private async Task<Usuario?> CurrentUserAsync()

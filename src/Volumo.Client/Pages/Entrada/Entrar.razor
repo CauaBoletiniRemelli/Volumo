@@ -1,0 +1,228 @@
+@page "/entrar"
+@layout EntradaLayout
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+@inject NavigationManager Navegacao
+
+<PageTitle>Entrar · Volumo</PageTitle>
+
+<SectionContent SectionName="entrada-lado">
+    <div class="lado pilha">
+        <p class="rotulo">Personal e aluno</p>
+        <p class="lado-frase">O treino que o personal montou, a carga da semana passada e o descanso contando.</p>
+        <p>Abre mesmo sem sinal na academia. O que você registrar offline vai para o servidor quando a internet voltar.</p>
+    </div>
+</SectionContent>
+
+@switch (_etapa)
+{
+    case Etapa.Senha:
+        <div class="pilha" style="--espaco: 28px">
+            <h1>Entrar</h1>
+            <EditForm Model="_login" OnValidSubmit="EntrarAsync" class="formulario" FormName="entrar">
+                <DataAnnotationsValidator />
+                <div class="campo">
+                    <label class="rotulo" for="email">E-mail</label>
+                    <InputText id="email" type="email" autocomplete="username" @bind-Value="_login.Email" />
+                    <ValidationMessage For="() => _login.Email" />
+                </div>
+                <div class="campo">
+                    <label class="rotulo" for="senha">Senha</label>
+                    <InputText id="senha" type="password" autocomplete="current-password" @bind-Value="_login.Senha" />
+                    <ValidationMessage For="() => _login.Senha" />
+                </div>
+
+                @if (_erro is not null)
+                {
+                    <p class="aviso aviso-erro" role="alert">@_erro</p>
+                }
+
+                @if (_emailNaoConfirmado)
+                {
+                    <div class="aviso pilha">
+                        <p>Não achou o e-mail de confirmação? Mandamos outro.</p>
+                        <VerificacaoHumana @ref="_verificacao" TokenChanged="t => _tokenTurnstile = t" />
+                        <button type="button" class="botao" disabled="@(_enviando || string.IsNullOrEmpty(_tokenTurnstile))" @onclick="ReenviarConfirmacaoAsync">Reenviar link</button>
+                    </div>
+                }
+
+                <button type="submit" class="botao botao-principal botao-largo" disabled="@_enviando">Entrar</button>
+            </EditForm>
+            <p class="links-secundarios">
+                <a href="esqueci-senha">Esqueci a senha</a>
+                <a href="cadastro">Sou personal e quero criar uma conta</a>
+            </p>
+        </div>
+        break;
+
+    case Etapa.Codigo:
+        <div class="pilha" style="--espaco: 28px">
+            <h1>Código</h1>
+            <p class="secundario">Abra o aplicativo autenticador no celular e digite os 6 números do Volumo.</p>
+            <EditForm Model="_codigo" OnValidSubmit="EnviarCodigoAsync" class="formulario" FormName="codigo">
+                <DataAnnotationsValidator />
+                <div class="campo">
+                    <label class="rotulo" for="codigo">Código de 6 dígitos</label>
+                    <InputText id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" @bind-Value="_codigo.Valor" />
+                    <ValidationMessage For="() => _codigo.Valor" />
+                </div>
+                @if (_erro is not null)
+                {
+                    <p class="aviso aviso-erro" role="alert">@_erro</p>
+                }
+                <button type="submit" class="botao botao-principal botao-largo" disabled="@_enviando">Confirmar</button>
+            </EditForm>
+            <p class="links-secundarios">
+                <button type="button" class="botao botao-texto" @onclick="() => Trocar(Etapa.Recuperacao)">Perdi o celular: usar um código de recuperação</button>
+            </p>
+        </div>
+        break;
+
+    case Etapa.Recuperacao:
+        <div class="pilha" style="--espaco: 28px">
+            <h1>Recuperação</h1>
+            <p class="secundario">Use um dos códigos que você guardou quando ativou a verificação em duas etapas. Cada código serve uma vez.</p>
+            <EditForm Model="_codigo" OnValidSubmit="EnviarRecuperacaoAsync" class="formulario" FormName="recuperacao">
+                <DataAnnotationsValidator />
+                <div class="campo">
+                    <label class="rotulo" for="recuperacao">Código de recuperação</label>
+                    <InputText id="recuperacao" autocomplete="off" class="numero" @bind-Value="_codigo.Valor" />
+                    <ValidationMessage For="() => _codigo.Valor" />
+                </div>
+                @if (_erro is not null)
+                {
+                    <p class="aviso aviso-erro" role="alert">@_erro</p>
+                }
+                <button type="submit" class="botao botao-principal botao-largo" disabled="@_enviando">Entrar</button>
+            </EditForm>
+            <p class="links-secundarios">
+                <button type="button" class="botao botao-texto" @onclick="() => Trocar(Etapa.Codigo)">Voltar para o código do aplicativo</button>
+            </p>
+        </div>
+        break;
+}
+
+@code {
+    private enum Etapa { Senha, Codigo, Recuperacao }
+
+    private readonly FormularioDeLogin _login = new();
+    private readonly FormularioDeCodigo _codigo = new();
+    private VerificacaoHumana? _verificacao;
+    private Etapa _etapa = Etapa.Senha;
+    private string? _desafio;
+    private string? _erro;
+    private string? _tokenTurnstile;
+    private bool _enviando;
+    private bool _emailNaoConfirmado;
+
+    [SupplyParameterFromQuery] public string? Voltar { get; set; }
+
+    private async Task EntrarAsync()
+    {
+        await EnviarAsync(async () =>
+        {
+            var resultado = await Api.PostAsync<RespostaDeLogin>("auth/login", new PedidoDeLogin(_login.Email.Trim(), _login.Senha));
+            _emailNaoConfirmado = resultado.Status == System.Net.HttpStatusCode.Forbidden && resultado.Erro?.Contains("Confirme", StringComparison.Ordinal) == true;
+            if (!resultado.Ok)
+            {
+                _erro = resultado.Erro;
+            }
+            else if (resultado.Valor!.Requer2Fa)
+            {
+                _desafio = resultado.Valor.Desafio2Fa;
+                Trocar(Etapa.Codigo);
+            }
+            else
+            {
+                Concluir(resultado.Valor);
+            }
+        });
+    }
+
+    private Task EnviarCodigoAsync() => EnviarAsync(async () =>
+        Finalizar(await Api.PostAsync<RespostaDeLogin>("auth/login/2fa", new SegundaEtapaDoLogin(_desafio!, _codigo.Valor))));
+
+    private Task EnviarRecuperacaoAsync() => EnviarAsync(async () =>
+        Finalizar(await Api.PostAsync<RespostaDeLogin>("auth/login/recuperacao", new LoginComCodigoDeRecuperacao(_desafio!, _codigo.Valor))));
+
+    private async Task ReenviarConfirmacaoAsync()
+    {
+        await EnviarAsync(async () =>
+        {
+            var resultado = await Api.PostAsync("auth/reenviar-confirmacao", new PedidoDeReenvioDeConfirmacao(_login.Email.Trim(), _tokenTurnstile!));
+            _emailNaoConfirmado = false;
+            _erro = resultado.Ok ? null : resultado.Erro;
+            if (resultado.Ok)
+            {
+                _erro = $"Se {_login.Email.Trim()} tiver conta, o link novo já está a caminho.";
+            }
+        });
+
+        if (_verificacao is not null)
+        {
+            await _verificacao.ReiniciarAsync();
+        }
+    }
+
+    private void Finalizar(Resultado<RespostaDeLogin> resultado)
+    {
+        if (resultado.Ok)
+        {
+            Concluir(resultado.Valor!);
+        }
+        else
+        {
+            _erro = resultado.Erro;
+            _codigo.Valor = string.Empty;
+        }
+    }
+
+    private void Concluir(RespostaDeLogin sessao)
+    {
+        Sessao.Iniciar(sessao);
+        Navegacao.NavigateTo(DestinoSeguro(Voltar), replace: true);
+    }
+
+    private void Trocar(Etapa etapa)
+    {
+        _etapa = etapa;
+        _erro = null;
+        _codigo.Valor = string.Empty;
+    }
+
+    private async Task EnviarAsync(Func<Task> acao)
+    {
+        _enviando = true;
+        _erro = null;
+        try
+        {
+            await acao();
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    /// <summary>Só volta para caminhos do próprio app (evita redirecionamento para outro site).</summary>
+    private static string DestinoSeguro(string? voltar) =>
+        voltar is { Length: > 1 } && voltar.StartsWith('/') && !voltar.StartsWith("//", StringComparison.Ordinal) && !voltar.StartsWith("/\\", StringComparison.Ordinal)
+            ? voltar
+            : "/";
+
+    private sealed class FormularioDeLogin
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Informe o e-mail.")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "E-mail inválido.")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Informe a senha.")]
+        public string Senha { get; set; } = string.Empty;
+    }
+
+    private sealed class FormularioDeCodigo
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Informe o código.")]
+        public string Valor { get; set; } = string.Empty;
+    }
+}

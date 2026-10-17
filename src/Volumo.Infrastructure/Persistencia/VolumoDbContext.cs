@@ -12,7 +12,8 @@ using Volumo.Infrastructure.Identity;
 
 namespace Volumo.Infrastructure.Persistencia;
 
-public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options)
+/// <param name="acesso">Usuário da requisição para os filtros de dono; nulo = sem filtro de dono.</param>
+public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, IContextoDeAcesso? acesso = null)
     : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>(options), IDataProtectionKeyContext
 {
     /// <summary>
@@ -67,10 +68,64 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options)
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
+    /// <summary>Lido a cada consulta pelos filtros de dono (o EF trata como parâmetro da instância).</summary>
+    private Guid? UsuarioDoAcesso => acesso?.UsuarioId;
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(VolumoDbContext).Assembly);
+        ConfigurarFiltrosDeDono(builder);
+    }
+
+    /// <summary>
+    /// Proteção contra IDOR no banco: mesmo que uma consulta esqueça de filtrar pelo dono, os dados
+    /// de outra conta não aparecem. Regras:
+    /// personal vê os próprios templates, exercícios e convites e os dados dos alunos com vínculo ativo;
+    /// aluno vê os próprios treinos e sessões, o perfil e os exercícios dos personais com quem teve vínculo.
+    /// </summary>
+    private void ConfigurarFiltrosDeDono(ModelBuilder builder)
+    {
+        builder.Entity<PerfilPersonal>().HasQueryFilter(FiltrosDeConsulta.Dono, p =>
+            UsuarioDoAcesso == null
+            || p.Id == UsuarioDoAcesso
+            || VinculosPersonalAluno.Any(v => v.PersonalId == p.Id && v.AlunoId == UsuarioDoAcesso));
+
+        builder.Entity<PerfilAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, a =>
+            UsuarioDoAcesso == null
+            || a.Id == UsuarioDoAcesso
+            || VinculosPersonalAluno.Any(v => v.AlunoId == a.Id && v.PersonalId == UsuarioDoAcesso && v.EncerradoEm == null));
+
+        builder.Entity<VinculoPersonalAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, v =>
+            UsuarioDoAcesso == null || v.PersonalId == UsuarioDoAcesso || v.AlunoId == UsuarioDoAcesso);
+
+        builder.Entity<ConviteAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, c =>
+            UsuarioDoAcesso == null || c.PersonalId == UsuarioDoAcesso || c.AlunoId == UsuarioDoAcesso);
+
+        builder.Entity<Exercicio>().HasQueryFilter(FiltrosDeConsulta.Dono, e =>
+            UsuarioDoAcesso == null
+            || e.PersonalId == null
+            || e.PersonalId == UsuarioDoAcesso
+            || VinculosPersonalAluno.Any(v => v.AlunoId == UsuarioDoAcesso && v.PersonalId == e.PersonalId));
+
+        builder.Entity<TemplateTreino>().HasQueryFilter(FiltrosDeConsulta.Dono, t =>
+            UsuarioDoAcesso == null || t.PersonalId == UsuarioDoAcesso);
+
+        builder.Entity<Treino>().HasQueryFilter(FiltrosDeConsulta.Dono, t =>
+            UsuarioDoAcesso == null
+            || t.AlunoId == UsuarioDoAcesso
+            || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == t.AlunoId && v.EncerradoEm == null));
+
+        builder.Entity<SessaoTreino>().HasQueryFilter(FiltrosDeConsulta.Dono, s =>
+            UsuarioDoAcesso == null
+            || s.AlunoId == UsuarioDoAcesso
+            || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == s.AlunoId && v.EncerradoEm == null));
+
+        builder.Entity<RegistroSerie>().HasQueryFilter(FiltrosDeConsulta.Dono, r =>
+            UsuarioDoAcesso == null
+            || SessoesTreino.Any(s => s.Id == r.SessaoId
+                && (s.AlunoId == UsuarioDoAcesso
+                    || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == s.AlunoId && v.EncerradoEm == null))));
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

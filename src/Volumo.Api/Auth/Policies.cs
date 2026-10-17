@@ -8,6 +8,9 @@ public static class Policies
 
     public const string Aluno = "Aluno";
 
+    /// <summary>Qualquer conta logada e ativa (aluno ou personal), para recursos dos dois lados, como ver um treino.</summary>
+    public const string ContaAtiva = "ContaAtiva";
+
     /// <summary>Administrador da plataforma, sempre com 2FA.</summary>
     public const string Admin = "Admin";
 

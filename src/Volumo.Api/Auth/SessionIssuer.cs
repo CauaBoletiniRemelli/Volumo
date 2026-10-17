@@ -33,9 +33,9 @@ public sealed class SessionIssuer(
     /// <summary>Inativa quando a conta tem perfil e todos os perfis estão inativos.</summary>
     public async Task<bool> IsInactiveAsync(Guid usuarioId, CancellationToken ct)
     {
-        var personalAtivo = await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos])
+        var personalAtivo = await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos, FiltrosDeConsulta.Dono])
             .Where(p => p.Id == usuarioId).Select(p => (bool?)(p.InativadoEm == null)).SingleOrDefaultAsync(ct);
-        var alunoAtivo = await db.PerfisAluno.IgnoreQueryFilters([FiltrosDeConsulta.Ativos])
+        var alunoAtivo = await db.PerfisAluno.IgnoreQueryFilters([FiltrosDeConsulta.Ativos, FiltrosDeConsulta.Dono])
             .Where(a => a.Id == usuarioId).Select(a => (bool?)(a.InativadoEm == null)).SingleOrDefaultAsync(ct);
 
         bool?[] perfis = [personalAtivo, alunoAtivo];

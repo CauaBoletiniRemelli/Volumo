@@ -118,7 +118,9 @@ Escolha: **Blazor WebAssembly**, pela produtividade em C# e modelos compartilhad
 - **Fotos e vídeos**: Azure Blob, AWS S3 ou Cloudflare R2.
 
 ### Stack final
-**C# + ASP.NET Core + EF Core + SQL Server + Blazor WebAssembly (PWA) + MudBlazor**
+**C# + ASP.NET Core + EF Core + SQL Server + Blazor WebAssembly (PWA) + componentes próprios**
+
+Mudança de 16/10/2026: no lugar do MudBlazor, componentes com CSS próprio. O MudBlazor segue o Material Design, com visual padronizado de "app gerado", e o briefing de design pede identidade própria (ver `docs/contexto-backend.md`, seção "Front"). Também deixa o app mais leve para carregar no celular.
 
 ---
 

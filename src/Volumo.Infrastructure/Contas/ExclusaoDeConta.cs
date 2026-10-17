@@ -7,6 +7,7 @@ namespace Volumo.Infrastructure.Contas;
 /// Exclusão de conta pedida pelo usuário (LGPD, art. 18). Nada é apagado do banco: os dados pessoais
 /// são anonimizados e o resto é inativado, para o histórico de treinos continuar consistente sem
 /// identificar ninguém. Tudo vai num único SaveChanges (uma transação) e pode ser repetido sem efeito.
+/// Operação do sistema: ignora os filtros de dono (precisa achar convites e vínculos dos dois lados).
 /// </summary>
 public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
 {
@@ -46,7 +47,7 @@ public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
 
     private async Task AnonimizarPersonalAsync(Guid personalId, DateTimeOffset agora, CancellationToken ct)
     {
-        var personal = await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos])
+        var personal = await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos, FiltrosDeConsulta.Dono])
             .SingleOrDefaultAsync(p => p.Id == personalId, ct);
         if (personal is null)
         {
@@ -56,22 +57,22 @@ public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
         personal.Anonimizar(agora);
 
         // Os alunos ficam sem personal, mas mantêm os treinos que ele prescreveu.
-        foreach (var vinculo in await db.VinculosPersonalAluno.Where(v => v.PersonalId == personalId && v.EncerradoEm == null).ToListAsync(ct))
+        foreach (var vinculo in await db.VinculosPersonalAluno.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(v => v.PersonalId == personalId && v.EncerradoEm == null).ToListAsync(ct))
         {
             vinculo.Encerrar(agora);
         }
 
-        foreach (var convite in await db.ConvitesAluno.Where(c => c.PersonalId == personalId).ToListAsync(ct))
+        foreach (var convite in await db.ConvitesAluno.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(c => c.PersonalId == personalId).ToListAsync(ct))
         {
             convite.Anonimizar(agora);
         }
 
-        foreach (var template in await db.TemplatesTreino.Where(t => t.PersonalId == personalId).ToListAsync(ct))
+        foreach (var template in await db.TemplatesTreino.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(t => t.PersonalId == personalId).ToListAsync(ct))
         {
             template.Inativar(agora);
         }
 
-        foreach (var exercicio in await db.Exercicios.Where(e => e.PersonalId == personalId).ToListAsync(ct))
+        foreach (var exercicio in await db.Exercicios.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(e => e.PersonalId == personalId).ToListAsync(ct))
         {
             exercicio.Inativar(agora);
         }
@@ -79,7 +80,7 @@ public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
 
     private async Task AnonimizarAlunoAsync(Guid alunoId, DateTimeOffset agora, CancellationToken ct)
     {
-        var aluno = await db.PerfisAluno.IgnoreQueryFilters([FiltrosDeConsulta.Ativos])
+        var aluno = await db.PerfisAluno.IgnoreQueryFilters([FiltrosDeConsulta.Ativos, FiltrosDeConsulta.Dono])
             .SingleOrDefaultAsync(a => a.Id == alunoId, ct);
         if (aluno is null)
         {
@@ -88,18 +89,18 @@ public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
 
         aluno.Anonimizar(agora);
 
-        foreach (var vinculo in await db.VinculosPersonalAluno.Where(v => v.AlunoId == alunoId && v.EncerradoEm == null).ToListAsync(ct))
+        foreach (var vinculo in await db.VinculosPersonalAluno.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(v => v.AlunoId == alunoId && v.EncerradoEm == null).ToListAsync(ct))
         {
             vinculo.Encerrar(agora);
         }
 
-        foreach (var convite in await db.ConvitesAluno.Where(c => c.AlunoId == alunoId).ToListAsync(ct))
+        foreach (var convite in await db.ConvitesAluno.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(c => c.AlunoId == alunoId).ToListAsync(ct))
         {
             convite.Anonimizar(agora);
         }
 
         // Sessões e séries registradas ficam: sem dados pessoais, servem só para estatística.
-        foreach (var treino in await db.Treinos.Where(t => t.AlunoId == alunoId).ToListAsync(ct))
+        foreach (var treino in await db.Treinos.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(t => t.AlunoId == alunoId).ToListAsync(ct))
         {
             treino.Inativar(agora);
         }

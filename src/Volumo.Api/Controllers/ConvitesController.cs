@@ -95,7 +95,7 @@ public sealed class ConvitesController(
             return InvalidInvite();
         }
 
-        var personal = await db.PerfisPersonal.SingleOrDefaultAsync(p => p.Id == convite.PersonalId, ct);
+        var personal = await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).SingleOrDefaultAsync(p => p.Id == convite.PersonalId, ct);
         if (personal is null)
         {
             return InvalidInvite();
@@ -115,7 +115,7 @@ public sealed class ConvitesController(
     public async Task<IActionResult> Accept(TokenDeConvite request, CancellationToken ct)
     {
         var convite = await FindAcceptableAsync(request.Token, ct);
-        if (convite is null || !await db.PerfisPersonal.AnyAsync(p => p.Id == convite.PersonalId, ct))
+        if (convite is null || !await InvitingPersonalIsActiveAsync(convite.PersonalId, ct))
         {
             return InvalidInvite();
         }
@@ -155,9 +155,13 @@ public sealed class ConvitesController(
             return null;
         }
 
-        var convite = await db.ConvitesAluno.SingleOrDefaultAsync(c => c.TokenHash == hash, ct);
+        // O convite é de outro personal: o token é a autorização, então o filtro de dono não se aplica.
+        var convite = await db.ConvitesAluno.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).SingleOrDefaultAsync(c => c.TokenHash == hash, ct);
         return convite is not null && convite.PodeSerAceito(clock.GetUtcNow()) ? convite : null;
     }
+
+    private Task<bool> InvitingPersonalIsActiveAsync(Guid personalId, CancellationToken ct) =>
+        db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).AnyAsync(p => p.Id == personalId, ct);
 
     private async Task<bool> IsAlreadyMyStudentAsync(Guid personalId, string email, CancellationToken ct)
     {

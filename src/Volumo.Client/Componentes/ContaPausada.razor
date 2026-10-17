@@ -1,0 +1,36 @@
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+@inject NavigationManager Navegacao
+
+<section class="pilha" style="--espaco: 20px; max-width: 520px">
+    <p class="rotulo">Conta pausada</p>
+    <h1>Bem-vindo de volta</h1>
+    <p>Você pausou a conta, mas nada foi apagado: treinos, histórico e vínculos continuam aqui.</p>
+    @if (_erro is not null)
+    {
+        <p class="aviso aviso-erro" role="alert">@_erro</p>
+    }
+    <div>
+        <button class="botao botao-principal" disabled="@_enviando" @onclick="ReativarAsync">Reativar minha conta</button>
+    </div>
+</section>
+
+@code {
+    private string? _erro;
+    private bool _enviando;
+
+    private async Task ReativarAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync<RespostaDeLogin>("conta/reativar");
+        _enviando = false;
+        if (resultado.Ok)
+        {
+            Sessao.Iniciar(resultado.Valor!);
+            Navegacao.NavigateTo("/", replace: true, forceLoad: false);
+            return;
+        }
+
+        _erro = resultado.Erro;
+    }
+}

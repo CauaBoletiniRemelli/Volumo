@@ -1,0 +1,70 @@
+@page "/esqueci-senha"
+@layout EntradaLayout
+@using System.ComponentModel.DataAnnotations
+@inject ApiVolumo Api
+
+<PageTitle>Esqueci a senha · Volumo</PageTitle>
+
+@if (_enviadoPara is not null)
+{
+    <div class="pilha" style="--espaco: 20px">
+        <h1>Confira o e-mail</h1>
+        <p>Se <strong>@_enviadoPara</strong> tiver conta no Volumo, o link para criar uma senha nova já está a caminho. Ele vale por 1 hora.</p>
+        <a class="botao" href="entrar">Voltar para o login</a>
+    </div>
+}
+else
+{
+    <div class="pilha" style="--espaco: 28px">
+        <h1>Nova senha</h1>
+        <p class="secundario">Informe o e-mail da conta. Mandamos um link para você criar outra senha.</p>
+        <EditForm Model="_form" OnValidSubmit="EnviarAsync" class="formulario" FormName="esqueci-senha">
+            <DataAnnotationsValidator />
+            <div class="campo">
+                <label class="rotulo" for="email">E-mail</label>
+                <InputText id="email" type="email" autocomplete="email" @bind-Value="_form.Email" />
+                <ValidationMessage For="() => _form.Email" />
+            </div>
+            <VerificacaoHumana @ref="_verificacao" TokenChanged="t => _tokenTurnstile = t" />
+            @if (_erro is not null)
+            {
+                <p class="aviso aviso-erro" role="alert">@_erro</p>
+            }
+            <button type="submit" class="botao botao-principal botao-largo" disabled="@(_enviando || string.IsNullOrEmpty(_tokenTurnstile))">Enviar link</button>
+        </EditForm>
+        <p class="links-secundarios"><a href="entrar">Lembrei a senha</a></p>
+    </div>
+}
+
+@code {
+    private readonly Formulario _form = new();
+    private VerificacaoHumana? _verificacao;
+    private string? _tokenTurnstile;
+    private string? _erro;
+    private string? _enviadoPara;
+    private bool _enviando;
+
+    private async Task EnviarAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync("auth/esqueci-senha", new PedidoDeRecuperacaoDeSenha(_form.Email.Trim(), _tokenTurnstile!));
+        _enviando = false;
+        if (resultado.Ok)
+        {
+            _enviadoPara = _form.Email.Trim();
+            return;
+        }
+
+        _erro = resultado.Erro;
+        if (_verificacao is not null)
+        {
+            await _verificacao.ReiniciarAsync();
+        }
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Informe o e-mail."), EmailAddress(ErrorMessage = "E-mail inválido.")]
+        public string Email { get; set; } = string.Empty;
+    }
+}

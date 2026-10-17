@@ -57,7 +57,7 @@ public sealed class AuthController(
             return Accepted();
         }
 
-        if (cref is not null && await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos]).AnyAsync(p => p.Cref == cref, ct))
+        if (cref is not null && await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos, FiltrosDeConsulta.Dono]).AnyAsync(p => p.Cref == cref, ct))
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: "Este CREF já está cadastrado.");
         }
@@ -384,11 +384,11 @@ public sealed class AuthController(
     private Task<ConviteAluno?> FindInviteAsync(string token, CancellationToken ct)
     {
         var hash = ConviteAluno.CalcularHash(token);
-        return hash is null ? Task.FromResult<ConviteAluno?>(null) : db.ConvitesAluno.SingleOrDefaultAsync(c => c.TokenHash == hash, ct);
+        return hash is null ? Task.FromResult<ConviteAluno?>(null) : db.ConvitesAluno.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).SingleOrDefaultAsync(c => c.TokenHash == hash, ct);
     }
 
     private Task<bool> InvitingPersonalIsActiveAsync(Guid personalId, CancellationToken ct) =>
-        db.PerfisPersonal.AnyAsync(p => p.Id == personalId, ct); // o filtro global já esconde inativos
+        db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).AnyAsync(p => p.Id == personalId, ct); // o filtro Ativos continua valendo
 
     private ObjectResult InvalidInvite() =>
         Problem(statusCode: StatusCodes.Status400BadRequest, title: "Convite inválido, expirado ou já usado.");

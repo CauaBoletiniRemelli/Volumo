@@ -1,0 +1,17 @@
+@inherits LayoutComponentBase
+
+@* Telas de entrada (login, cadastro, convite). No computador, texto à esquerda e formulário à
+   direita; no celular, o formulário vem primeiro e o texto vai para baixo. *@
+<div class="entrada">
+    <header class="entrada-topo">
+        <Marca />
+    </header>
+
+    <main class="entrada-formulario">
+        @Body
+    </main>
+
+    <aside class="entrada-lado">
+        <SectionOutlet SectionName="entrada-lado" />
+    </aside>
+</div>

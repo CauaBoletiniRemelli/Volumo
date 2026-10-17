@@ -221,6 +221,260 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.HasIndex("PersonalId");
 
                     b.ToTable("Exercicios", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000001"),
+                            GrupoMuscular = "Peitoral",
+                            Nome = "Supino reto com barra"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000002"),
+                            GrupoMuscular = "Peitoral",
+                            Nome = "Supino inclinado com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000003"),
+                            GrupoMuscular = "Peitoral",
+                            Nome = "Crucifixo com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000004"),
+                            GrupoMuscular = "Peitoral",
+                            Nome = "Crossover na polia"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000005"),
+                            GrupoMuscular = "Peitoral",
+                            Nome = "Flexão de braço"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000006"),
+                            GrupoMuscular = "Costas",
+                            Nome = "Puxada frontal na polia"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000007"),
+                            GrupoMuscular = "Costas",
+                            Nome = "Remada curvada com barra"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000008"),
+                            GrupoMuscular = "Costas",
+                            Nome = "Remada baixa na polia"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000009"),
+                            GrupoMuscular = "Costas",
+                            Nome = "Remada unilateral com halter"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000000a"),
+                            GrupoMuscular = "Costas",
+                            Nome = "Barra fixa"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000000b"),
+                            GrupoMuscular = "Ombros",
+                            Nome = "Desenvolvimento com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000000c"),
+                            GrupoMuscular = "Ombros",
+                            Nome = "Elevação lateral com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000000d"),
+                            GrupoMuscular = "Ombros",
+                            Nome = "Elevação frontal com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000000e"),
+                            GrupoMuscular = "Ombros",
+                            Nome = "Crucifixo invertido"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000000f"),
+                            GrupoMuscular = "Trapezio",
+                            Nome = "Encolhimento com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000010"),
+                            GrupoMuscular = "Biceps",
+                            Nome = "Rosca direta com barra"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000011"),
+                            GrupoMuscular = "Biceps",
+                            Nome = "Rosca alternada com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000012"),
+                            GrupoMuscular = "Biceps",
+                            Nome = "Rosca martelo"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000013"),
+                            GrupoMuscular = "Triceps",
+                            Nome = "Tríceps na polia com corda"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000014"),
+                            GrupoMuscular = "Triceps",
+                            Nome = "Tríceps testa"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000015"),
+                            GrupoMuscular = "Triceps",
+                            Nome = "Mergulho no banco"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000016"),
+                            GrupoMuscular = "Antebraco",
+                            Nome = "Rosca de punho"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000017"),
+                            GrupoMuscular = "Quadriceps",
+                            Nome = "Agachamento livre"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000018"),
+                            GrupoMuscular = "Quadriceps",
+                            Nome = "Leg press 45°"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000019"),
+                            GrupoMuscular = "Quadriceps",
+                            Nome = "Cadeira extensora"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000001a"),
+                            GrupoMuscular = "Quadriceps",
+                            Nome = "Afundo com halteres"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000001b"),
+                            GrupoMuscular = "Posteriores",
+                            Nome = "Stiff com barra"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000001c"),
+                            GrupoMuscular = "Posteriores",
+                            Nome = "Mesa flexora"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000001d"),
+                            GrupoMuscular = "Posteriores",
+                            Nome = "Cadeira flexora"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000001e"),
+                            GrupoMuscular = "Gluteos",
+                            Nome = "Elevação pélvica"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000001f"),
+                            GrupoMuscular = "Gluteos",
+                            Nome = "Glúteo na polia"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000020"),
+                            GrupoMuscular = "Adutores",
+                            Nome = "Cadeira adutora"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000021"),
+                            GrupoMuscular = "Abdutores",
+                            Nome = "Cadeira abdutora"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000022"),
+                            GrupoMuscular = "Panturrilhas",
+                            Nome = "Panturrilha em pé"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000023"),
+                            GrupoMuscular = "Panturrilhas",
+                            Nome = "Panturrilha sentado"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000024"),
+                            GrupoMuscular = "Abdomen",
+                            Nome = "Prancha"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000025"),
+                            GrupoMuscular = "Abdomen",
+                            Nome = "Abdominal supra"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000026"),
+                            GrupoMuscular = "Abdomen",
+                            Nome = "Elevação de pernas"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000027"),
+                            GrupoMuscular = "Lombar",
+                            Nome = "Hiperextensão lombar"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000028"),
+                            GrupoMuscular = "CorpoInteiro",
+                            Nome = "Levantamento terra"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000029"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Esteira"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000002a"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Bicicleta ergométrica"
+                        });
                 });
 
             modelBuilder.Entity("Volumo.Domain.Sessoes.RegistroSerie", b =>

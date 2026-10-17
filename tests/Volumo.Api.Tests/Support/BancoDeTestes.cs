@@ -21,8 +21,15 @@ public sealed class BancoDeTestes : IAsyncLifetime
     public const string ConnectionString =
         @"Server=(localdb)\MSSQLLocalDB;Database=Volumo_Testes;Trusted_Connection=True";
 
+    /// <summary>Contexto sem usuário: os filtros de dono não se aplicam (visão do sistema).</summary>
     public static VolumoDbContext NovoContexto() =>
         new(new DbContextOptionsBuilder<VolumoDbContext>().UseSqlServer(ConnectionString).Options);
+
+    /// <summary>Contexto como se a requisição fosse deste usuário: filtros de dono ligados.</summary>
+    public static VolumoDbContext NovoContexto(Guid usuarioId) =>
+        new(new DbContextOptionsBuilder<VolumoDbContext>().UseSqlServer(ConnectionString).Options, new AcessoFixo(usuarioId));
+
+    private sealed record AcessoFixo(Guid? UsuarioId) : IContextoDeAcesso;
 
     public async ValueTask InitializeAsync()
     {

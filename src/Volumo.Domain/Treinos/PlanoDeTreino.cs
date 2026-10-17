@@ -44,6 +44,26 @@ public abstract class PlanoDeTreino : EntidadeInativavel
         return item;
     }
 
+    /// <summary>
+    /// Troca todos os exercícios de uma vez, na ordem recebida (o construtor de treino envia o
+    /// treino inteiro). Tudo é validado antes: se algum item for inválido, nada muda.
+    /// </summary>
+    public void SubstituirItens(IReadOnlyList<DefinicaoDeItem> itens)
+    {
+        ArgumentNullException.ThrowIfNull(itens);
+        GarantirAtivo();
+        if (itens.Count > MaximoItens)
+        {
+            throw new RegraDeNegocioException($"Um treino pode ter no máximo {MaximoItens} exercícios.");
+        }
+
+        var novos = itens
+            .Select((item, indice) => new ItemTreino(Guid.CreateVersion7(), indice + 1, item.ExercicioId, item.Series, item.Observacao))
+            .ToList();
+        _itens.Clear();
+        _itens.AddRange(novos);
+    }
+
     public ItemTreino ObterItem(Guid itemId) =>
         _itens.Find(i => i.Id == itemId) ?? throw new RegraDeNegocioException("Exercício não encontrado neste treino.");
 

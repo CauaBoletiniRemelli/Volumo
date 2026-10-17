@@ -1,0 +1,69 @@
+.app { min-height: 100vh; }
+
+.app-conteudo {
+    width: 100%;
+    max-width: 960px;
+    padding: 28px var(--gutter) calc(96px + env(safe-area-inset-bottom));
+}
+
+/* Celular: barra inferior fixa, links do tamanho do polegar. */
+.app-nav {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 10;
+    display: flex;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--fundo-fundo);
+    border-top: 1px solid var(--linha);
+}
+
+.app-nav-marca { display: none; }
+
+.app-nav ::deep .app-link {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    min-height: 60px;
+    font: 600 .8rem/1 var(--fonte-texto);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--texto-2);
+    text-decoration: none;
+    border-top: 2px solid transparent;
+}
+
+.app-nav ::deep .app-link.active { color: var(--texto); border-top-color: var(--acao); }
+
+@media (min-width: 960px) {
+    .app {
+        display: grid;
+        grid-template-columns: 232px minmax(0, 1fr);
+    }
+
+    .app-nav {
+        position: sticky;
+        top: 0;
+        inset: auto;
+        height: 100vh;
+        flex-direction: column;
+        padding: 32px 0;
+        border-top: 0;
+        border-right: 1px solid var(--linha);
+    }
+
+    .app-nav-marca { display: block; padding: 0 28px 40px; }
+
+    .app-nav ::deep .app-link {
+        flex: none;
+        display: block;
+        min-height: 0;
+        padding: 12px 28px;
+        border-top: 0;
+        border-left: 2px solid transparent;
+    }
+
+    .app-nav ::deep .app-link:hover { color: var(--texto); }
+    .app-nav ::deep .app-link.active { border-left-color: var(--acao); }
+
+    .app-conteudo { padding: 48px 56px; }
+}

@@ -1,0 +1,64 @@
+@page "/conta"
+@attribute [Authorize]
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+@inject NavigationManager Navegacao
+
+<PageTitle>Conta · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <h1>Conta</h1>
+</header>
+
+@if (_dados is null)
+{
+    <p class="secundario">@(_erro ?? "Carregando.")</p>
+}
+else
+{
+    <div class="painel">
+        <dl class="dados">
+            <div><dt class="rotulo">E-mail</dt><dd>@_dados.Email</dd></div>
+            <div><dt class="rotulo">Tipo de conta</dt><dd>@string.Join(" e ", _dados.Papeis)</dd></div>
+            <div>
+                <dt class="rotulo">Verificação em duas etapas</dt>
+                <dd>
+                    @if (_dados.DoisFatoresAtivo)
+                    {
+                        <span class="etiqueta etiqueta-acao">Ativa</span>
+                    }
+                    else
+                    {
+                        <span class="etiqueta">Desligada</span>
+                        <a class="botao botao-texto" href="conta/2fa">Configurar</a>
+                    }
+                </dd>
+            </div>
+        </dl>
+    </div>
+
+    <div class="acoes-da-conta">
+        <button class="botao" disabled="@_saindo" @onclick="SairAsync">Sair deste aparelho</button>
+    </div>
+}
+
+@code {
+    private DadosDaConta? _dados;
+    private string? _erro;
+    private bool _saindo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Api.GetAsync<DadosDaConta>("conta");
+        _dados = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+
+    private async Task SairAsync()
+    {
+        _saindo = true;
+        await Api.PostAsync("auth/logout");
+        Sessao.Encerrar();
+        Navegacao.NavigateTo("entrar", replace: true);
+    }
+}
