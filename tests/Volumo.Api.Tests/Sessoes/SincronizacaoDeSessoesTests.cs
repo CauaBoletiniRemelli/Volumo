@@ -140,6 +140,43 @@ public sealed class SincronizacaoDeSessoesTests(VolumoApiFactory factory) : ICla
         (await EnviarAsync(client, HttpMethod.Post, "/sessoes/sincronizar", aluno.Token, corpo: grande)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Cardio_da_sessao_e_gravado_sem_entrar_no_volume_e_nao_duplica()
+    {
+        using var client = factory.CreateHttpsClient();
+        var aluno = await AlunoComTreinoAsync(client);
+        var esteira = await ExercicioDoCatalogoAsync(client, aluno.TokenPersonal, "Esteira");
+        var inicio = DateTimeOffset.UtcNow.AddHours(-1);
+        var sessao = Sessao(aluno.TreinoId, inicio, inicio.AddMinutes(50), Serie(aluno.Supino, 10, 40m, inicio.AddMinutes(25))) with
+        {
+            Cardios = [new CardioRegistrado(Guid.CreateVersion7(), esteira, 20, inicio.AddMinutes(20))],
+        };
+
+        await SincronizarAsync(client, aluno.Token, sessao);
+        await SincronizarAsync(client, aluno.Token, sessao);
+
+        var resumo = (await GetAsync<List<SessaoResumo>>(client, "/sessoes", aluno.Token)).Single();
+        resumo.MinutosDeCardio.ShouldBe(20);
+        resumo.VolumeKg.ShouldBe(400m);
+        resumo.QuantidadeDeSeries.ShouldBe(1);
+        var detalhe = await GetAsync<SessaoDetalhe>(client, $"/sessoes/{sessao.Id}", aluno.Token);
+        detalhe.Cardios!.Select(c => (c.NomeDoExercicio, c.DuracaoMinutos)).ShouldBe([("Esteira", 20)]);
+    }
+
+    [Fact]
+    public async Task Cardio_no_futuro_ou_com_exercicio_inexistente_recusa_a_sessao()
+    {
+        using var client = factory.CreateHttpsClient();
+        var aluno = await AlunoComTreinoAsync(client);
+        var inicio = DateTimeOffset.UtcNow.AddMinutes(-30);
+
+        var resultado = await SincronizarAsync(client, aluno.Token,
+            Sessao(aluno.TreinoId, inicio, null) with { Cardios = [new CardioRegistrado(Guid.CreateVersion7(), aluno.Supino, 10, DateTimeOffset.UtcNow.AddHours(1))] },
+            Sessao(aluno.TreinoId, inicio, null) with { Cardios = [new CardioRegistrado(Guid.CreateVersion7(), Guid.CreateVersion7(), 10, inicio.AddMinutes(5))] });
+
+        resultado.ShouldAllBe(r => r.Situacao == SituacaoDaSincronizacao.Recusada);
+    }
+
     private sealed record AlunoComTreino(Guid Id, string Token, string TokenPersonal, Guid TreinoId, Guid Supino);
 
     private async Task<AlunoComTreino> AlunoComTreinoAsync(HttpClient client)

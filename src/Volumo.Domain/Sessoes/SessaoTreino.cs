@@ -9,8 +9,10 @@ namespace Volumo.Domain.Sessoes;
 public sealed class SessaoTreino : Entidade
 {
     public const int MaximoRegistros = 300;
+    public const int MaximoCardios = 20;
 
     private readonly List<RegistroSerie> _registros = [];
+    private readonly List<RegistroCardio> _cardios = [];
 
     private SessaoTreino()
     {
@@ -36,6 +38,8 @@ public sealed class SessaoTreino : Entidade
     public bool Finalizada => FinalizadaEm is not null;
 
     public IReadOnlyList<RegistroSerie> Registros => [.. _registros.OrderBy(r => r.RealizadaEm)];
+
+    public IReadOnlyList<RegistroCardio> Cardios => [.. _cardios.OrderBy(c => c.RealizadoEm)];
 
     public static SessaoTreino Iniciar(Guid id, Guid alunoId, Guid? treinoId, DateTimeOffset iniciadaEm) =>
         new(id, alunoId, treinoId, iniciadaEm);
@@ -69,6 +73,35 @@ public sealed class SessaoTreino : Entidade
         return registro;
     }
 
+    /// <summary>Registra um cardio. Se o Id já existe na sessão, devolve o registro existente (idempotente).</summary>
+    public RegistroCardio RegistrarCardio(Guid registroId, Guid exercicioId, int duracaoMinutos, DateTimeOffset realizadoEm)
+    {
+        var existente = _cardios.Find(c => c.Id == registroId);
+        if (existente is not null)
+        {
+            return existente;
+        }
+
+        if (Finalizada)
+        {
+            throw new RegraDeNegocioException("Esta sessão já foi finalizada.");
+        }
+
+        if (realizadoEm < IniciadaEm)
+        {
+            throw new RegraDeNegocioException("O cardio não pode ser anterior ao início da sessão.");
+        }
+
+        if (_cardios.Count >= MaximoCardios)
+        {
+            throw new RegraDeNegocioException($"Uma sessão pode ter no máximo {MaximoCardios} cardios.");
+        }
+
+        var registro = new RegistroCardio(registroId, Id, exercicioId, duracaoMinutos, realizadoEm);
+        _cardios.Add(registro);
+        return registro;
+    }
+
     /// <summary>Finaliza a sessão. Finalizar de novo não muda nada (reenvio na sincronização).</summary>
     public void Finalizar(DateTimeOffset finalizadaEm)
     {
@@ -82,7 +115,7 @@ public sealed class SessaoTreino : Entidade
             throw new RegraDeNegocioException("O fim da sessão não pode ser anterior ao início.");
         }
 
-        if (_registros.Exists(r => r.RealizadaEm > finalizadaEm))
+        if (_registros.Exists(r => r.RealizadaEm > finalizadaEm) || _cardios.Exists(c => c.RealizadoEm > finalizadaEm))
         {
             throw new RegraDeNegocioException("O fim da sessão não pode ser anterior às séries registradas.");
         }

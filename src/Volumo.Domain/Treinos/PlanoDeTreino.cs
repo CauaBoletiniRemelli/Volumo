@@ -11,8 +11,10 @@ public abstract class PlanoDeTreino : EntidadeInativavel
 {
     public const int NomeMaximo = 100;
     public const int MaximoItens = 40;
+    public const int MaximoCardios = 10;
 
     private readonly List<ItemTreino> _itens = [];
+    private readonly List<ItemCardio> _cardios = [];
 
     protected PlanoDeTreino()
     {
@@ -24,6 +26,31 @@ public abstract class PlanoDeTreino : EntidadeInativavel
     public string Nome { get; private set; } = null!;
 
     public IReadOnlyList<ItemTreino> Itens => [.. _itens.OrderBy(i => i.Ordem)];
+
+    /// <summary>Cardio do treino, separado da musculação.</summary>
+    public IReadOnlyList<ItemCardio> Cardios => [.. _cardios.OrderBy(c => c.Ordem)];
+
+    /// <summary>Quando o personal recomenda fazer o cardio (antes ou depois da musculação).</summary>
+    public MomentoDoCardio MomentoDoCardio { get; private set; } = MomentoDoCardio.Depois;
+
+    /// <summary>Troca todo o cardio e o momento recomendado. Tudo é validado antes: se algo for inválido, nada muda.</summary>
+    public void SubstituirCardios(IReadOnlyList<DefinicaoDeCardio> cardios, MomentoDoCardio momento)
+    {
+        ArgumentNullException.ThrowIfNull(cardios);
+        GarantirAtivo();
+        Guarda.EnumValido(momento, "Momento do cardio");
+        if (cardios.Count > MaximoCardios)
+        {
+            throw new RegraDeNegocioException($"Um treino pode ter no máximo {MaximoCardios} cardios.");
+        }
+
+        var novos = cardios
+            .Select((c, indice) => new ItemCardio(Guid.CreateVersion7(), indice + 1, c.ExercicioId, c.DuracaoMinutos, c.Observacao))
+            .ToList();
+        _cardios.Clear();
+        _cardios.AddRange(novos);
+        MomentoDoCardio = momento;
+    }
 
     public void Renomear(string nome)
     {
@@ -106,6 +133,8 @@ public abstract class PlanoDeTreino : EntidadeInativavel
     {
         ArgumentNullException.ThrowIfNull(origem);
         _itens.AddRange(origem.Itens.Select(i => i.Copiar()));
+        _cardios.AddRange(origem.Cardios.Select(c => c.Copiar()));
+        MomentoDoCardio = origem.MomentoDoCardio;
     }
 
     private static void Renumerar(List<ItemTreino> itensEmOrdem)

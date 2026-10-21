@@ -10,6 +10,7 @@
     @if (_painel is not null)
     {
         <p class="secundario">Atualizado <span class="numero">@_painel.GeradoEm.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)</span></p>
+        <button type="button" class="botao botao-texto" disabled="@_atualizando" @onclick="() => CarregarAsync(atualizar: true)">@(_atualizando ? "Atualizando" : "Atualizar")</button>
     }
 </header>
 
@@ -137,10 +138,16 @@
     private PainelDoPersonal? _painel;
     private string? _erro;
 
-    protected override async Task OnInitializedAsync()
+    private bool _atualizando;
+
+    protected override Task OnInitializedAsync() => CarregarAsync(atualizar: false);
+
+    private async Task CarregarAsync(bool atualizar)
     {
-        var resultado = await Api.GetAsync<PainelDoPersonal>("painel");
-        _painel = resultado.Valor;
+        _atualizando = true;
+        var resultado = await Api.GetAsync<PainelDoPersonal>("painel", atualizar);
+        _painel = resultado.Valor ?? _painel;
         _erro = resultado.Erro;
+        _atualizando = false;
     }
 }

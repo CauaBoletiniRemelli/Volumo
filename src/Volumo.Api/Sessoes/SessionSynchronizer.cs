@@ -48,8 +48,9 @@ public sealed class SessionSynchronizer(VolumoDbContext db, TimeProvider clock)
 
     private async Task<ResultadoDaSessao> TrySyncAsync(Guid alunoId, SessaoRegistrada dados, CancellationToken ct)
     {
+        var cardios = dados.Cardios ?? [];
         var limit = clock.GetUtcNow() + FutureTolerance;
-        if (dados.IniciadaEm > limit || dados.FinalizadaEm > limit || dados.Series.Any(s => s.RealizadaEm > limit))
+        if (dados.IniciadaEm > limit || dados.FinalizadaEm > limit || dados.Series.Any(s => s.RealizadaEm > limit) || cardios.Any(c => c.RealizadoEm > limit))
         {
             return Rejected(dados.Id, "Horário no futuro. Confira a data e a hora do aparelho.");
         }
@@ -69,7 +70,7 @@ public sealed class SessionSynchronizer(VolumoDbContext db, TimeProvider clock)
             return Rejected(dados.Id, "Treino não encontrado.");
         }
 
-        var exercicios = dados.Series.Select(s => s.ExercicioId).Distinct().ToList();
+        var exercicios = dados.Series.Select(s => s.ExercicioId).Concat(cardios.Select(c => c.ExercicioId)).Distinct().ToList();
         var visible = await db.Exercicios.IgnoreQueryFilters([FiltrosDeConsulta.Ativos]).CountAsync(e => exercicios.Contains(e.Id), ct);
         if (visible != exercicios.Count)
         {
@@ -84,12 +85,17 @@ public sealed class SessionSynchronizer(VolumoDbContext db, TimeProvider clock)
         }
         else
         {
-            sessao = await db.SessoesTreino.Include(s => s.Registros).SingleAsync(s => s.Id == dados.Id, ct);
+            sessao = await db.SessoesTreino.Include(s => s.Registros).Include(s => s.Cardios).SingleAsync(s => s.Id == dados.Id, ct);
         }
 
         foreach (var serie in dados.Series.OrderBy(s => s.RealizadaEm))
         {
             sessao.RegistrarSerie(serie.Id, serie.ExercicioId, serie.Repeticoes, serie.CargaKg, serie.Rir, serie.RealizadaEm);
+        }
+
+        foreach (var cardio in cardios.OrderBy(c => c.RealizadoEm))
+        {
+            sessao.RegistrarCardio(cardio.Id, cardio.ExercicioId, cardio.DuracaoMinutos, cardio.RealizadoEm);
         }
 
         if (dados.FinalizadaEm is { } fim)

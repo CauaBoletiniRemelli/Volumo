@@ -200,6 +200,14 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Equipamento")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("FotoChave")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("GrupoMuscular")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -215,6 +223,20 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
 
                     b.Property<Guid?>("PersonalId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("VideoChave")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("_instrucoes")
+                        .HasMaxLength(3009)
+                        .HasColumnType("nvarchar(3009)")
+                        .HasColumnName("Instrucoes");
+
+                    b.Property<string>("_secundarios")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("MusculosSecundarios");
 
                     b.HasKey("Id");
 
@@ -474,7 +496,75 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                             Id = new Guid("0199ecb1-0000-7000-8000-00000000002a"),
                             GrupoMuscular = "Cardio",
                             Nome = "Bicicleta ergométrica"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000002b"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Elíptico"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000002c"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Remo ergômetro"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000002d"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Escada ergométrica"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000002e"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Bicicleta de spinning"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-00000000002f"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Pular corda"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000030"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Caminhada ao ar livre"
+                        },
+                        new
+                        {
+                            Id = new Guid("0199ecb1-0000-7000-8000-000000000031"),
+                            GrupoMuscular = "Cardio",
+                            Nome = "Corrida ao ar livre"
                         });
+                });
+
+            modelBuilder.Entity("Volumo.Domain.Sessoes.RegistroCardio", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DuracaoMinutos")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ExercicioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("RealizadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("SessaoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExercicioId");
+
+                    b.HasIndex("SessaoId");
+
+                    b.ToTable("RegistrosCardio", (string)null);
                 });
 
             modelBuilder.Entity("Volumo.Domain.Sessoes.RegistroSerie", b =>
@@ -544,6 +634,13 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.Property<DateTimeOffset?>("InativadoEm")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("MomentoDoCardio")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Depois");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -570,10 +667,20 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.Property<DateTimeOffset?>("InativadoEm")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("MomentoDoCardio")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Depois");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("int");
 
                     b.Property<Guid?>("PersonalId")
                         .HasColumnType("uniqueidentifier");
@@ -909,6 +1016,21 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("Volumo.Domain.Sessoes.RegistroCardio", b =>
+                {
+                    b.HasOne("Volumo.Domain.Exercicios.Exercicio", null)
+                        .WithMany()
+                        .HasForeignKey("ExercicioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Volumo.Domain.Sessoes.SessaoTreino", null)
+                        .WithMany("Cardios")
+                        .HasForeignKey("SessaoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Volumo.Domain.Sessoes.RegistroSerie", b =>
                 {
                     b.HasOne("Volumo.Domain.Exercicios.Exercicio", null)
@@ -945,6 +1067,45 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                         .HasForeignKey("PersonalId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.OwnsMany("Volumo.Domain.Treinos.ItemCardio", "Cardios", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("DuracaoMinutos")
+                                .HasColumnType("int");
+
+                            b1.Property<Guid>("ExercicioId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Observacao")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<int>("Ordem")
+                                .HasColumnType("int");
+
+                            b1.Property<Guid>("PlanoId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ExercicioId");
+
+                            b1.HasIndex("PlanoId");
+
+                            b1.ToTable("CardiosTemplateTreino", (string)null);
+
+                            b1.HasOne("Volumo.Domain.Exercicios.Exercicio", null)
+                                .WithMany()
+                                .HasForeignKey("ExercicioId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired();
+
+                            b1.WithOwner()
+                                .HasForeignKey("PlanoId");
+                        });
 
                     b.OwnsMany("Volumo.Domain.Treinos.ItemTreino", "Itens", b1 =>
                         {
@@ -1026,6 +1187,8 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                             b1.Navigation("Series");
                         });
 
+                    b.Navigation("Cardios");
+
                     b.Navigation("Itens");
                 });
 
@@ -1046,6 +1209,45 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                         .WithMany()
                         .HasForeignKey("TemplateOrigemId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.OwnsMany("Volumo.Domain.Treinos.ItemCardio", "Cardios", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("DuracaoMinutos")
+                                .HasColumnType("int");
+
+                            b1.Property<Guid>("ExercicioId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Observacao")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<int>("Ordem")
+                                .HasColumnType("int");
+
+                            b1.Property<Guid>("PlanoId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ExercicioId");
+
+                            b1.HasIndex("PlanoId");
+
+                            b1.ToTable("CardiosTreino", (string)null);
+
+                            b1.HasOne("Volumo.Domain.Exercicios.Exercicio", null)
+                                .WithMany()
+                                .HasForeignKey("ExercicioId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired();
+
+                            b1.WithOwner()
+                                .HasForeignKey("PlanoId");
+                        });
 
                     b.OwnsMany("Volumo.Domain.Treinos.ItemTreino", "Itens", b1 =>
                         {
@@ -1127,6 +1329,8 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                             b1.Navigation("Series");
                         });
 
+                    b.Navigation("Cardios");
+
                     b.Navigation("Itens");
                 });
 
@@ -1188,6 +1392,8 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
 
             modelBuilder.Entity("Volumo.Domain.Sessoes.SessaoTreino", b =>
                 {
+                    b.Navigation("Cardios");
+
                     b.Navigation("Registros");
                 });
 #pragma warning restore 612, 618

@@ -34,6 +34,27 @@ public static class Rotulos
 
     public static string De(TipoDeSerie tipo) => tipo == TipoDeSerie.Aquecimento ? "Aquecimento" : "Trabalho";
 
+    public static string De(Equipamento equipamento) => equipamento switch
+    {
+        Equipamento.Barra => "Barra",
+        Equipamento.Halteres => "Halteres",
+        Equipamento.Maquina => "Máquina",
+        Equipamento.Polia => "Polia",
+        Equipamento.PesoCorporal => "Peso corporal",
+        Equipamento.Kettlebell => "Kettlebell",
+        Equipamento.Elastico => "Elástico",
+        Equipamento.Anilha => "Anilha",
+        Equipamento.Suspensao => "Suspensão (fita)",
+        _ => "Outro",
+    };
+
+    public static string De(MomentoDoCardio momento) => momento switch
+    {
+        MomentoDoCardio.Antes => "Antes da musculação",
+        MomentoDoCardio.Depois => "Depois da musculação",
+        _ => "O aluno escolhe",
+    };
+
     /// <summary>Carga sem casas desnecessárias: 20 → "20", 22.5 → "22,5".</summary>
     public static string Kg(decimal carga) => carga.ToString("0.##", PtBr);
 

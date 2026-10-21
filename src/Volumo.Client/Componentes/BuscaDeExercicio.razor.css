@@ -44,6 +44,16 @@
 }
 
 .resultado:hover { background: var(--superficie-2); }
+.resultado-nome { flex: 1; min-width: 0; }
+
+.miniatura {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--raio);
+    object-fit: cover;
+    background: var(--superficie-2);
+}
 .resultado .secundario { font-size: .85rem; white-space: nowrap; }
 
 .criar { padding-top: 14px; border-top: 1px solid var(--linha); }

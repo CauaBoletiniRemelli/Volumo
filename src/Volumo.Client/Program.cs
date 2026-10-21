@@ -20,7 +20,8 @@ builder.Services.AddSingleton(sp => new ApiVolumo(
     new HttpClient(new AnexarToken(sp.GetRequiredService<SessaoDoUsuario>()) { InnerHandler = new HttpClientHandler() })
     {
         BaseAddress = apiBaseUrl,
-    }));
+    },
+    sp.GetRequiredService<SessaoDoUsuario>()));
 
 builder.Services.AddSingleton<SincronizacaoDeSessoes>();
 builder.Services.AddSingleton<TreinosDoAluno>();

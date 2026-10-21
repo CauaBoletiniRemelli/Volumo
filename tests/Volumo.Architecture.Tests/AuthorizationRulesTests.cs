@@ -16,6 +16,10 @@ public sealed class AuthorizationRulesTests
     [
         "AuthController.*",
         "ConvitesController.Preview",
+
+        // Arquivos do armazenamento em disco (dev/testes): o token cifrado e com prazo na URL é a
+        // autorização, como a URL assinada do R2 (tags <img>/<video> não mandam o token de acesso).
+        "ArquivosController.Get",
     ];
 
     private static readonly Assembly Api = typeof(Api.Auth.Policies).Assembly;

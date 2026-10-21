@@ -41,9 +41,11 @@ public sealed record RespostaDeLogin(string? TokenDeAcesso, DateTimeOffset? Expi
     public bool Requer2Fa => Desafio2Fa is not null;
 }
 
+/// <param name="LembrarAparelho">Não pedir o código neste aparelho por 30 dias (a senha continua sendo pedida).</param>
 public sealed record SegundaEtapaDoLogin(
     [Required, StringLength(2048)] string Desafio,
-    [Required, StringLength(10)] string Codigo);
+    [Required, StringLength(10)] string Codigo,
+    bool LembrarAparelho = false);
 
 public sealed record LoginComCodigoDeRecuperacao(
     [Required, StringLength(2048)] string Desafio,

@@ -41,8 +41,41 @@ public sealed class AlunosController(VolumoDbContext db, PlanMapper mapper, Time
             return NotFound();
         }
 
-        var treinos = await db.Treinos.AsNoTracking().Where(t => t.AlunoId == alunoId).OrderBy(t => t.Nome).ToListAsync(ct);
+        var treinos = await db.Treinos.AsNoTracking().Where(t => t.AlunoId == alunoId).OrderBy(t => t.Ordem).ThenBy(t => t.Nome).ToListAsync(ct);
         return treinos.Select(TreinosController.ToSummary).ToList();
+    }
+
+    /// <summary>
+    /// Ordem dos treinos na lista do aluno (Treino A, B, C...). A lista precisa ter cada treino ativo
+    /// do aluno exatamente uma vez; arquivados ficam de fora.
+    /// </summary>
+    [HttpPut("{alunoId:guid}/treinos/ordem")]
+    public async Task<IActionResult> ReorderTreinos(Guid alunoId, OrdemDosTreinos request, CancellationToken ct)
+    {
+        if (!await IsActiveStudentAsync(alunoId, ct))
+        {
+            return NotFound();
+        }
+
+        var treinos = await db.Treinos.Where(t => t.AlunoId == alunoId).ToListAsync(ct);
+        var mesmosTreinos = request.TreinoIds.Count == treinos.Count
+            && request.TreinoIds.Distinct().Count() == treinos.Count
+            && request.TreinoIds.All(id => treinos.Exists(t => t.Id == id));
+        if (!mesmosTreinos)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "A lista mudou enquanto você reordenava.",
+                detail: "Atualize a página e tente de novo: a nova ordem precisa ter cada treino ativo do aluno uma vez.");
+        }
+
+        for (var i = 0; i < request.TreinoIds.Count; i++)
+        {
+            treinos.Find(t => t.Id == request.TreinoIds[i])!.Posicionar(i + 1);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     /// <summary>Histórico de sessões do aluno, mais recentes primeiro.</summary>
@@ -66,14 +99,15 @@ public sealed class AlunosController(VolumoDbContext db, PlanMapper mapper, Time
             return NotFound();
         }
 
-        var itens = await mapper.ToDefinitionsAsync(request, ct);
-        if (itens is null)
+        var plano = await mapper.ToDefinitionsAsync(request, ct);
+        if (plano is null)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Algum exercício não existe ou não está disponível para você.");
         }
 
         var treino = Treino.CriarPeloPersonal(Guid.CreateVersion7(), User.UsuarioId()!.Value, alunoId, request.Nome);
-        treino.SubstituirItens(itens);
+        plano.ApplyTo(treino);
+        await TreinosController.PlaceAtEndAsync(db, treino, ct);
         db.Treinos.Add(treino);
         await db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(TreinosController.Get), "Treinos", new { id = treino.Id }, new RecursoCriado(treino.Id));

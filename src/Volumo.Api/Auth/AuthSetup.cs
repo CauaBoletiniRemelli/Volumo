@@ -100,6 +100,7 @@ public static class AuthSetup
 
         services.AddSingleton<AccessTokenIssuer>();
         services.AddSingleton<TwoFactorChallenge>();
+        services.AddSingleton<TrustedDeviceCookie>();
         services.AddScoped<RefreshTokenService>();
         services.AddScoped<SessionIssuer>();
         services.AddScoped<AccountEmails>();

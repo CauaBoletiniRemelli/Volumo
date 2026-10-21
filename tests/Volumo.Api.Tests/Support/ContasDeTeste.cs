@@ -106,6 +106,16 @@ internal static class ContasDeTeste
         (await userManager.AddToRoleAsync(usuario!, Volumo.Domain.Usuarios.Papeis.Admin)).Succeeded.ShouldBeTrue();
     }
 
+    /// <summary>Admin com 2FA (o papel é dado direto na plataforma; o 2FA é ativado pela API). Devolve o token.</summary>
+    public static async Task<string> AdminComDoisFatoresAsync(HttpClient client, VolumoApiFactory factory)
+    {
+        var email = await PersonalConfirmadoAsync(client, factory);
+        await TornarAdminAsync(factory, email);
+        var (token, _) = await EntrarAsync(client, email);
+        var (_, _, tokenComDoisFatores, _) = await AtivarDoisFatoresAsync(client, token);
+        return tokenComDoisFatores;
+    }
+
     public static async Task<Guid> IdDoUsuarioAsync(string email)
     {
         await using var db = BancoDeTestes.NovoContexto();

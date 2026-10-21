@@ -23,7 +23,7 @@ public sealed class TreinosController(VolumoDbContext db, PlanMapper mapper, Tim
     public async Task<IReadOnlyList<TreinoResumo>> ListMine(CancellationToken ct)
     {
         var alunoId = User.UsuarioId()!.Value;
-        var treinos = await db.Treinos.AsNoTracking().Where(t => t.AlunoId == alunoId).OrderBy(t => t.Nome).ToListAsync(ct);
+        var treinos = await db.Treinos.AsNoTracking().Where(t => t.AlunoId == alunoId).OrderBy(t => t.Ordem).ThenBy(t => t.Nome).ToListAsync(ct);
         return [.. treinos.Select(ToSummary)];
     }
 
@@ -34,7 +34,7 @@ public sealed class TreinosController(VolumoDbContext db, PlanMapper mapper, Tim
         var treino = await db.Treinos.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, ct);
         return treino is null
             ? NotFound()
-            : new TreinoDetalhe(treino.Id, treino.Nome, treino.AlunoId, treino.PersonalId, await mapper.ToOutputAsync(treino, ct));
+            : await mapper.ToDetailAsync(treino, ct);
     }
 
     [HttpPut("{id:guid}")]
@@ -47,14 +47,14 @@ public sealed class TreinosController(VolumoDbContext db, PlanMapper mapper, Tim
             return problem;
         }
 
-        var itens = await mapper.ToDefinitionsAsync(request, ct);
-        if (itens is null)
+        var plano = await mapper.ToDefinitionsAsync(request, ct);
+        if (plano is null)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Algum exercício não existe ou não está disponível para você.");
         }
 
         treino!.Renomear(request.Nome);
-        treino.SubstituirItens(itens);
+        plano.ApplyTo(treino);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -73,6 +73,13 @@ public sealed class TreinosController(VolumoDbContext db, PlanMapper mapper, Tim
         treino!.Inativar(clock.GetUtcNow());
         await db.SaveChangesAsync(ct);
         return NoContent();
+    }
+
+    /// <summary>Treino novo entra no fim da lista do aluno.</summary>
+    internal static async Task PlaceAtEndAsync(VolumoDbContext db, Treino treino, CancellationToken ct)
+    {
+        var ultima = await db.Treinos.Where(t => t.AlunoId == treino.AlunoId).MaxAsync(t => (int?)t.Ordem, ct);
+        treino.Posicionar((ultima ?? 0) + 1);
     }
 
     internal static TreinoResumo ToSummary(Treino t) => new(t.Id, t.Nome, t.TemplateOrigemId, t.Itens.Count);

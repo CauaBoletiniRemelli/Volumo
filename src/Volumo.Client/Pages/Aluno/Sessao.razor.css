@@ -18,6 +18,11 @@
 }
 
 .mapa-feito { color: var(--texto-3); border-color: var(--linha); text-decoration: line-through; }
+.mapa-cardio { border-style: dashed; }
+
+.etapa-tipo { color: var(--acao); margin-bottom: -8px; }
+.cardio-feito { margin-bottom: 8px; }
+.registro-cardio { padding-top: 16px; }
 .mapa-atual { color: var(--sobre-acao); background: var(--acao); border-color: var(--acao); text-decoration: none; }
 
 .series-da-sessao { display: grid; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
@@ -104,6 +109,14 @@
 /* Espaço no fim para a barra de descanso não cobrir o botão. */
 .finalizar { margin: 28px 0 120px; padding-top: 20px; border-top: 1px solid var(--linha); }
 
+/* Em descanso, o resto do treino escurece (continua clicável) e o relógio fica em destaque. */
+.sessao-conteudo { transition: filter .25s ease, opacity .25s ease; }
+.sessao-em-descanso { filter: brightness(.45) saturate(.6); }
+
+@media (prefers-reduced-motion: reduce) {
+    .sessao-conteudo { transition: none; }
+}
+
 /* Descanso: barra fixa acima da navegação do celular. */
 .descanso {
     position: fixed;
@@ -113,12 +126,24 @@
     grid-template-columns: auto 1fr auto;
     align-items: center;
     gap: 16px;
-    padding: 12px var(--gutter);
-    background: var(--fundo-fundo);
-    border-top: 1px solid var(--acao);
+    padding: 18px var(--gutter);
+    background: var(--superficie);
+    border-top: 2px solid var(--linha-forte);
+    box-shadow: 0 -16px 40px rgb(0 0 0 / .55);
 }
 
-.descanso-tempo { font-size: 2.6rem; line-height: 1; color: var(--acao); }
+/* Quanto do descanso já passou, na borda de cima. */
+.descanso-progresso {
+    position: absolute;
+    inset: -2px 0 auto 0;
+    height: 4px;
+    background: var(--acao);
+    transform: scaleX(var(--decorrido, 0));
+    transform-origin: left;
+    transition: transform 1s linear;
+}
+
+.descanso-tempo { font-size: 3.4rem; line-height: 1; color: var(--acao); }
 .descanso-acoes { display: flex; gap: 8px; }
 .descanso-acoes .botao { padding: 0 14px; white-space: nowrap; }
 

@@ -131,6 +131,27 @@ a:hover { text-decoration-color: var(--acao); }
 .campo input.invalid { border-color: var(--erro); }
 .campo input[inputmode="numeric"] { font-family: var(--fonte-numero); letter-spacing: .2em; }
 
+/* Senha com o botão de olho dentro do campo (alvo de toque de 44 px). */
+.campo-senha { position: relative; }
+.campo .campo-senha input { padding-right: 56px; }
+.mostrar-senha {
+    position: absolute;
+    inset: 2px 2px 2px auto;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    border: 0;
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    cursor: pointer;
+}
+.mostrar-senha:hover { color: var(--texto); background: var(--superficie-2); }
+.mostrar-senha:focus-visible { color: var(--texto); outline: 2px solid var(--acao); outline-offset: -2px; }
+
+.marcar { display: flex; align-items: center; gap: 12px; min-height: var(--toque); cursor: pointer; }
+.marcar input { width: 22px; height: 22px; margin: 0; accent-color: var(--acao); cursor: pointer; }
+
 .campo-ajuda { font-size: .85rem; color: var(--texto-3); }
 .validation-message, .campo-erro { font-size: .85rem; color: var(--erro); }
 

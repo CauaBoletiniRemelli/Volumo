@@ -23,6 +23,7 @@ public sealed class AuthController(
     SessionIssuer sessions,
     RefreshTokenService refreshTokens,
     TwoFactorChallenge challenges,
+    TrustedDeviceCookie trustedDevices,
     AccountEmails emails,
     TimeProvider clock) : ControllerBase
 {
@@ -182,7 +183,7 @@ public sealed class AuthController(
 
     /// <summary>
     /// Primeira etapa: e-mail e senha. Sem 2FA, já abre a sessão. Com 2FA, devolve só um desafio
-    /// de 5 minutos para a segunda etapa.
+    /// de 5 minutos para a segunda etapa, a não ser que este aparelho tenha sido lembrado no 2FA.
     /// </summary>
     [HttpPost("login")]
     [EnableRateLimiting(RateLimitPolicies.Login)]
@@ -221,6 +222,12 @@ public sealed class AuthController(
                 return naoConfirmado;
             }
 
+            if (trustedDevices.IsTrusted(Request, usuario))
+            {
+                await userManager.ResetAccessFailedCountAsync(usuario);
+                return await sessions.StartAsync(Response, usuario, comDoisFatores: true, ct);
+            }
+
             return new RespostaDeLogin(null, null, challenges.Create(usuario));
         }
 
@@ -252,6 +259,11 @@ public sealed class AuthController(
         }
 
         await userManager.ResetAccessFailedCountAsync(usuario);
+        if (request.LembrarAparelho)
+        {
+            trustedDevices.Write(Response, usuario);
+        }
+
         return await sessions.StartAsync(Response, usuario, comDoisFatores: true, ct);
     }
 

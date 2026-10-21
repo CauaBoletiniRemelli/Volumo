@@ -37,6 +37,9 @@ public class VolumoApiFactory : WebApplicationFactory<Program>
         ["Jwt:SigningKey"] = TestSigningKey,
         ["Front:BaseUrl"] = AllowedOrigin,
         ["Email:Provider"] = "File",
+        ["Armazenamento:Provider"] = "Disco",
+        ["Armazenamento:Disco:UrlDaApi"] = BaseAddress.ToString(),
+        ["Armazenamento:Disco:Pasta"] = Path.Combine(Path.GetTempPath(), "volumo-testes-arquivos"),
         ["Turnstile:SecretKey"] = "chave-de-teste",
     };
 

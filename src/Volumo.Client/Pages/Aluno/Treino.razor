@@ -28,11 +28,37 @@ else
                 </div>
             </div>
         }
-        else
+        else if (_emAndamento is not null || _treino.CardiosOuVazio.Count == 0 || _treino.Itens.Count == 0)
         {
             <a class="botao botao-principal botao-largo botao-grande" href="treinos/@TreinoId/sessao">
                 @(_emAndamento is null ? "Começar treino" : "Continuar treino")
             </a>
+        }
+        else
+        {
+            @* Com cardio e musculação, o aluno escolhe por onde começar; a recomendação do personal vem destacada. *@
+            var momento = _treino.MomentoDoCardio;
+            <div class="pilha" style="--espaco: 10px">
+                <p class="rotulo">
+                    @(momento switch
+                    {
+                        MomentoDoCardio.Antes => "Seu personal recomenda o cardio antes",
+                        MomentoDoCardio.Depois => "Seu personal recomenda o cardio depois",
+                        _ => "Escolha por onde começar",
+                    })
+                </p>
+                <a class="botao botao-largo botao-grande @(momento == MomentoDoCardio.Depois ? null : "botao-principal")" href="treinos/@TreinoId/sessao?cardio=antes">
+                    Começar pelo cardio
+                </a>
+                <a class="botao botao-largo botao-grande @(momento == MomentoDoCardio.Depois ? "botao-principal" : null)" href="treinos/@TreinoId/sessao?cardio=depois">
+                    Começar pela musculação
+                </a>
+            </div>
+        }
+
+        @if (_treino.MomentoDoCardio == MomentoDoCardio.Antes)
+        {
+            <SecaoDeCardio Cardios="_treino.CardiosOuVazio" Momento="_treino.MomentoDoCardio" />
         }
 
         <ol class="itens-do-treino">
@@ -63,6 +89,11 @@ else
                 </li>
             }
         </ol>
+
+        @if (_treino.MomentoDoCardio != MomentoDoCardio.Antes)
+        {
+            <SecaoDeCardio Cardios="_treino.CardiosOuVazio" Momento="_treino.MomentoDoCardio" />
+        }
     </div>
 }
 

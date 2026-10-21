@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Serilog;
+using Volumo.Api.Arquivos;
 using Volumo.Api.Auth;
 using Volumo.Api.Errors;
 using Volumo.Api.Painel;
@@ -40,7 +41,9 @@ builder.Services.AddVolumoCors(builder.Configuration);
 builder.Services.AddVolumoRateLimiting(builder.Configuration);
 builder.Services.AddVolumoInfrastructure(builder.Configuration.GetConnectionString(DependencyInjection.ConnectionStringName));
 builder.Services.AddVolumoAuth(builder.Configuration, builder.Environment);
+builder.Services.AddVolumoArmazenamento(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<PlanMapper>();
+builder.Services.AddSingleton<ExerciseMapper>();
 builder.Services.AddScoped<SessionSynchronizer>();
 builder.Services.AddScoped<SessionQueries>();
 builder.Services.AddScoped<PainelQueries>();

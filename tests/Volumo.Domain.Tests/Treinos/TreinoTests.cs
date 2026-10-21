@@ -222,5 +222,80 @@ public sealed class TreinoTests
         Should.Throw<RegraDeNegocioException>(() => template.GerarTreinoPara(Dados.NovoId(), _alunoId));
     }
 
+    [Fact]
+    public void Treino_novo_nao_tem_cardio_e_recomenda_depois()
+    {
+        var treino = CriarTreino();
+
+        treino.Cardios.ShouldBeEmpty();
+        treino.MomentoDoCardio.ShouldBe(MomentoDoCardio.Depois);
+    }
+
+    [Fact]
+    public void Substituir_cardios_guarda_ordem_duracao_e_momento()
+    {
+        var treino = CriarTreino();
+        var esteira = Dados.NovoId();
+        var bike = Dados.NovoId();
+
+        treino.SubstituirCardios([new DefinicaoDeCardio(esteira, 10, "Aquecimento leve"), new DefinicaoDeCardio(bike, 20)], MomentoDoCardio.Antes);
+
+        treino.Cardios.Select(c => (c.ExercicioId, c.Ordem, c.DuracaoMinutos)).ShouldBe([(esteira, 1, 10), (bike, 2, 20)]);
+        treino.Cardios[0].Observacao.ShouldBe("Aquecimento leve");
+        treino.MomentoDoCardio.ShouldBe(MomentoDoCardio.Antes);
+        treino.Itens.ShouldBeEmpty("cardio não entra na musculação");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(ItemCardio.DuracaoMaximaMinutos + 1)]
+    public void Cardio_com_duracao_invalida_falha_sem_mudar_nada(int minutos)
+    {
+        var treino = CriarTreino();
+        treino.SubstituirCardios([new DefinicaoDeCardio(Dados.NovoId(), 15)], MomentoDoCardio.Depois);
+
+        Should.Throw<RegraDeNegocioException>(() =>
+            treino.SubstituirCardios([new DefinicaoDeCardio(Dados.NovoId(), 10), new DefinicaoDeCardio(Dados.NovoId(), minutos)], MomentoDoCardio.Antes));
+
+        treino.Cardios.Single().DuracaoMinutos.ShouldBe(15);
+        treino.MomentoDoCardio.ShouldBe(MomentoDoCardio.Depois);
+    }
+
+    [Fact]
+    public void Cardios_demais_ou_momento_invalido_falham()
+    {
+        var treino = CriarTreino();
+        var demais = Enumerable.Range(0, PlanoDeTreino.MaximoCardios + 1).Select(_ => new DefinicaoDeCardio(Dados.NovoId(), 10)).ToList();
+
+        Should.Throw<RegraDeNegocioException>(() => treino.SubstituirCardios(demais, MomentoDoCardio.Depois));
+        Should.Throw<RegraDeNegocioException>(() => treino.SubstituirCardios([], (MomentoDoCardio)99));
+    }
+
+    [Fact]
+    public void Treino_gerado_do_template_copia_o_cardio()
+    {
+        var template = TemplateTreino.Criar(Dados.NovoId(), _personalId, "Modelo");
+        template.SubstituirCardios([new DefinicaoDeCardio(Dados.NovoId(), 25, "Zona 2")], MomentoDoCardio.AlunoEscolhe);
+
+        var treino = template.GerarTreinoPara(Dados.NovoId(), _alunoId);
+
+        treino.Cardios.Single().DuracaoMinutos.ShouldBe(25);
+        treino.Cardios[0].Id.ShouldNotBe(template.Cardios[0].Id);
+        treino.MomentoDoCardio.ShouldBe(MomentoDoCardio.AlunoEscolhe);
+    }
+
+    [Fact]
+    public void Posicionar_define_a_ordem_e_recusa_negativo_ou_treino_inativo()
+    {
+        var treino = CriarTreino();
+
+        treino.Posicionar(3);
+
+        treino.Ordem.ShouldBe(3);
+        Should.Throw<RegraDeNegocioException>(() => treino.Posicionar(-1));
+        treino.Inativar(Dados.Agora);
+        Should.Throw<RegraDeNegocioException>(() => treino.Posicionar(1));
+    }
+
     private Treino CriarTreino() => Treino.CriarPeloPersonal(Dados.NovoId(), _personalId, _alunoId, "Treino A");
 }

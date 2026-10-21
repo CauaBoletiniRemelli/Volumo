@@ -35,7 +35,39 @@ public enum TipoDeSerie
     Trabalho = 2,
 }
 
-public sealed record ExercicioResumo(Guid Id, string Nome, GrupoMuscular GrupoMuscular, bool DoCatalogo);
+[JsonConverter(typeof(JsonStringEnumConverter<Equipamento>))]
+public enum Equipamento
+{
+    Barra = 1,
+    Halteres = 2,
+    Maquina = 3,
+    Polia = 4,
+    PesoCorporal = 5,
+    Kettlebell = 6,
+    Elastico = 7,
+    Anilha = 8,
+    Suspensao = 9,
+    Outro = 10,
+}
+
+/// <param name="FotoUrl">URL com prazo (algumas horas); nula quando o exercício não tem foto.</param>
+public sealed record ExercicioResumo(Guid Id, string Nome, GrupoMuscular GrupoMuscular, bool DoCatalogo, string? FotoUrl = null);
+
+/// <summary>
+/// Exercício com o pacote de informações do catálogo: músculos, equipamento, instruções em passos,
+/// foto e vídeo curto de execução. As URLs têm prazo de algumas horas.
+/// </summary>
+public sealed record ExercicioDetalhe(
+    Guid Id,
+    string Nome,
+    GrupoMuscular GrupoMuscular,
+    bool DoCatalogo,
+    IReadOnlyList<GrupoMuscular> MusculosSecundarios,
+    Equipamento? Equipamento,
+    IReadOnlyList<string> Instrucoes,
+    string? FotoUrl,
+    string? VideoUrl,
+    bool Ativo = true);
 
 public sealed record DadosDoExercicio(
     [Required, StringLength(100)] string Nome,
@@ -53,22 +85,59 @@ public sealed record ItemDoPlano(
     [Required, MinLength(1), MaxLength(20)] IReadOnlyList<SeriePrescrita> Series,
     [StringLength(500)] string? Observacao);
 
+/// <summary>Quando fazer o cardio. O aluno vê a recomendação do personal e pode trocar na hora.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<MomentoDoCardio>))]
+public enum MomentoDoCardio
+{
+    Antes = 1,
+    Depois = 2,
+    AlunoEscolhe = 3,
+}
+
+/// <summary>Cardio da aba "Cardio" do construtor: exercício do grupo Cardio, minutos e intensidade.</summary>
+public sealed record CardioPrescrito(
+    [Required] Guid ExercicioId,
+    [Range(1, 180)] int DuracaoMinutos,
+    [StringLength(500)] string? Observacao);
+
 /// <summary>Treino ou template inteiro, como o construtor envia (a gravação substitui tudo).</summary>
+/// <param name="Cardios">Opcional: sem a lista, o treino fica sem cardio.</param>
 public sealed record PlanoDeTreinoEntrada(
     [Required, StringLength(100)] string Nome,
-    [Required, MaxLength(40)] IReadOnlyList<ItemDoPlano> Itens);
+    [Required, MaxLength(40)] IReadOnlyList<ItemDoPlano> Itens,
+    [MaxLength(10)] IReadOnlyList<CardioPrescrito>? Cardios = null,
+    MomentoDoCardio MomentoDoCardio = MomentoDoCardio.Depois);
 
 public sealed record ItemDoPlanoSaida(
     Guid Id, int Ordem, Guid ExercicioId, string NomeDoExercicio, string? Observacao, IReadOnlyList<SeriePrescrita> Series);
 
+public sealed record CardioDoPlanoSaida(Guid Id, int Ordem, Guid ExercicioId, string NomeDoExercicio, int DuracaoMinutos, string? Observacao);
+
 public sealed record TemplateResumo(Guid Id, string Nome, int QuantidadeDeExercicios);
 
-public sealed record TemplateDetalhe(Guid Id, string Nome, IReadOnlyList<ItemDoPlanoSaida> Itens);
+/// <param name="Cardios">Nulo só em cópias antigas guardadas no aparelho; use <see cref="CardiosOuVazio"/>.</param>
+public sealed record TemplateDetalhe(
+    Guid Id, string Nome, IReadOnlyList<ItemDoPlanoSaida> Itens,
+    IReadOnlyList<CardioDoPlanoSaida>? Cardios = null, MomentoDoCardio MomentoDoCardio = MomentoDoCardio.Depois)
+{
+    [JsonIgnore]
+    public IReadOnlyList<CardioDoPlanoSaida> CardiosOuVazio => Cardios ?? [];
+}
 
 public sealed record TreinoResumo(Guid Id, string Nome, Guid? TemplateOrigemId, int QuantidadeDeExercicios);
 
-public sealed record TreinoDetalhe(Guid Id, string Nome, Guid AlunoId, Guid? PersonalId, IReadOnlyList<ItemDoPlanoSaida> Itens);
+/// <param name="Cardios">Nulo só em cópias antigas guardadas no aparelho; use <see cref="CardiosOuVazio"/>.</param>
+public sealed record TreinoDetalhe(
+    Guid Id, string Nome, Guid AlunoId, Guid? PersonalId, IReadOnlyList<ItemDoPlanoSaida> Itens,
+    IReadOnlyList<CardioDoPlanoSaida>? Cardios = null, MomentoDoCardio MomentoDoCardio = MomentoDoCardio.Depois)
+{
+    [JsonIgnore]
+    public IReadOnlyList<CardioDoPlanoSaida> CardiosOuVazio => Cardios ?? [];
+}
 
 public sealed record AtribuicaoDeTemplate([Required] Guid AlunoId);
+
+/// <summary>Todos os treinos ativos do aluno, na ordem em que devem aparecer para ele.</summary>
+public sealed record OrdemDosTreinos([Required, MaxLength(100)] IReadOnlyList<Guid> TreinoIds);
 
 public sealed record RecursoCriado(Guid Id);

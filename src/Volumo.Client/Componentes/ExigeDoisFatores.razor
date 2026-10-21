@@ -8,7 +8,7 @@
 else
 {
     <div class="aviso pilha">
-        <p>Antes de ver seus alunos e treinos, ative a verificação em duas etapas. Leva um minuto.</p>
+        <p>@Mensagem</p>
         <a class="botao botao-principal" href="conta/2fa">Ativar agora</a>
     </div>
 }
@@ -16,4 +16,7 @@ else
 @code {
     [Parameter, EditorRequired]
     public RenderFragment ChildContent { get; set; } = default!;
+
+    [Parameter]
+    public string Mensagem { get; set; } = "Antes de ver seus alunos e treinos, ative a verificação em duas etapas. Leva um minuto.";
 }

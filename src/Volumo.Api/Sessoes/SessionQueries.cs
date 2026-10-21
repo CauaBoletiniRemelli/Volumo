@@ -25,23 +25,24 @@ public sealed class SessionQueries(VolumoDbContext db)
                 s.FinalizadaEm,
                 Series = s.Registros.Count,
                 Volume = s.Registros.Sum(r => r.Repeticoes * r.CargaKg),
+                Cardio = s.Cardios.Sum(c => c.DuracaoMinutos),
             })
             .ToListAsync(ct);
 
         var names = await TreinoNamesAsync(rows.Where(r => r.TreinoId is not null).Select(r => r.TreinoId!.Value), ct);
         return [.. rows.Select(r => new SessaoResumo(
-            r.Id, r.TreinoId, r.TreinoId is { } t ? names.GetValueOrDefault(t) : null, r.IniciadaEm, r.FinalizadaEm, r.Series, r.Volume))];
+            r.Id, r.TreinoId, r.TreinoId is { } t ? names.GetValueOrDefault(t) : null, r.IniciadaEm, r.FinalizadaEm, r.Series, r.Volume, r.Cardio))];
     }
 
     public async Task<SessaoDetalhe?> DetailAsync(Guid id, CancellationToken ct)
     {
-        var sessao = await db.SessoesTreino.AsNoTracking().Include(s => s.Registros).SingleOrDefaultAsync(s => s.Id == id, ct);
+        var sessao = await db.SessoesTreino.AsNoTracking().Include(s => s.Registros).Include(s => s.Cardios).SingleOrDefaultAsync(s => s.Id == id, ct);
         if (sessao is null)
         {
             return null;
         }
 
-        var exercicioIds = sessao.Registros.Select(r => r.ExercicioId).Distinct().ToList();
+        var exercicioIds = sessao.Registros.Select(r => r.ExercicioId).Concat(sessao.Cardios.Select(c => c.ExercicioId)).Distinct().ToList();
         var exercicios = await db.Exercicios.IgnoreQueryFilters([FiltrosDeConsulta.Ativos])
             .Where(e => exercicioIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.Nome, ct);
         var treinos = sessao.TreinoId is { } treinoId ? await TreinoNamesAsync([treinoId], ct) : [];
@@ -54,7 +55,9 @@ public sealed class SessionQueries(VolumoDbContext db)
             sessao.IniciadaEm,
             sessao.FinalizadaEm,
             [.. sessao.Registros.Select(r => new SerieDaSessao(
-                r.Id, r.ExercicioId, exercicios.GetValueOrDefault(r.ExercicioId, UnavailableExercise), r.Repeticoes, r.CargaKg, r.Rir, r.RealizadaEm))]);
+                r.Id, r.ExercicioId, exercicios.GetValueOrDefault(r.ExercicioId, UnavailableExercise), r.Repeticoes, r.CargaKg, r.Rir, r.RealizadaEm))],
+            [.. sessao.Cardios.Select(c => new CardioDaSessao(
+                c.Id, c.ExercicioId, exercicios.GetValueOrDefault(c.ExercicioId, UnavailableExercise), c.DuracaoMinutos, c.RealizadoEm))]);
     }
 
     /// <summary>Nomes dos treinos, inclusive arquivados (o histórico continua mostrando o nome).</summary>

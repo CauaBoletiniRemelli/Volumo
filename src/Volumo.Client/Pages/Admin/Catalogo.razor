@@ -1,0 +1,83 @@
+@page "/admin/exercicios"
+@attribute [Authorize(Roles = "Admin")]
+@using Volumo.Shared.Admin
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+<PageTitle>Catálogo · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <p class="rotulo">Plataforma</p>
+    <h1>Catálogo de exercícios</h1>
+    <a class="botao botao-principal" href="admin/exercicios/novo">Novo exercício</a>
+</header>
+
+<ExigeDoisFatores Mensagem="O painel da plataforma exige verificação em duas etapas, porque dá acesso a dados de todos. Ative para continuar: leva um minuto.">
+    <div class="pilha" style="--espaco: 16px">
+        <div class="campo">
+            <label class="rotulo" for="busca-catalogo">Buscar</label>
+            <input id="busca-catalogo" type="search" autocomplete="off" placeholder="Nome do exercício" @bind="_termo" @bind:event="oninput" />
+        </div>
+
+        @if (_exercicios is not null)
+        {
+            var semVideo = _exercicios.Count(e => e.Ativo && !e.TemVideo);
+            <p class="secundario">
+                <span class="numero">@_exercicios.Count(e => e.Ativo)</span> ativos ·
+                <span class="numero">@semVideo</span> @Rotulos.Plural(semVideo, "sem vídeo", "sem vídeo")
+            </p>
+        }
+
+        <section class="painel">
+            @if (_exercicios is null)
+            {
+                <p class="lista-vazia">@(_erro ?? "Carregando.")</p>
+            }
+            else
+            {
+                var termo = Rotulos.ParaBusca(_termo.Trim());
+                var filtrados = _exercicios.Where(e => termo.Length == 0 || Rotulos.ParaBusca(e.Nome).Contains(termo, StringComparison.Ordinal)).ToList();
+                @if (filtrados.Count == 0)
+                {
+                    <p class="lista-vazia">Nenhum exercício com esse nome.</p>
+                }
+                else
+                {
+                    <ul class="lista">
+                        @foreach (var exercicio in filtrados)
+                        {
+                            <li>
+                                <span>
+                                    <a class="treino-nome" href="admin/exercicios/@exercicio.Id">@exercicio.Nome</a>
+                                    <span class="secundario"> · @Rotulos.De(exercicio.GrupoMuscular)@(exercicio.Equipamento is { } eq ? $" · {Rotulos.De(eq)}" : null)</span>
+                                </span>
+                                <span class="linha-de-botoes alinhada">
+                                    @if (!exercicio.Ativo)
+                                    {
+                                        <span class="etiqueta">Inativo</span>
+                                    }
+                                    <span class="etiqueta @(exercicio.TemFoto ? "etiqueta-acao" : null)">Foto</span>
+                                    <span class="etiqueta @(exercicio.TemVideo ? "etiqueta-acao" : null)">Vídeo</span>
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                }
+            }
+        </section>
+        <p class="campo-ajuda">Exercício do catálogo não é apagado: inativar tira da busca, e treinos que já usam continuam mostrando o nome.</p>
+    </div>
+</ExigeDoisFatores>
+
+@code {
+    private List<ExercicioDoCatalogoResumo>? _exercicios;
+    private string? _erro;
+    private string _termo = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Api.GetAsync<List<ExercicioDoCatalogoResumo>>("admin/exercicios");
+        _exercicios = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+}

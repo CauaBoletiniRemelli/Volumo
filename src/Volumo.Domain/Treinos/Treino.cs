@@ -23,6 +23,18 @@ public sealed class Treino : PlanoDeTreino
 
     public Guid? TemplateOrigemId { get; private set; }
 
+    /// <summary>
+    /// Posição na lista de treinos do aluno (Treino A, B, C...), definida pelo personal. Empate (treinos
+    /// de antes da ordenação, com 0) desempata pelo nome.
+    /// </summary>
+    public int Ordem { get; private set; }
+
+    public void Posicionar(int ordem)
+    {
+        GarantirAtivo();
+        Ordem = Guarda.Intervalo(ordem, 0, int.MaxValue, "Ordem do treino");
+    }
+
     public static Treino CriarPeloPersonal(Guid id, Guid personalId, Guid alunoId, string nome) =>
         new(id, alunoId, personalId, nome);
 

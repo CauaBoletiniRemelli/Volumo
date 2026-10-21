@@ -22,7 +22,8 @@
     }
     else
     {
-        <ConstrutorDeTreino NomeInicial="@_treino?.Nome" ItensIniciais="@_treino?.Itens" OnSalvar="SalvarAsync"
+        <ConstrutorDeTreino NomeInicial="@_treino?.Nome" ItensIniciais="@_treino?.Itens" CardiosIniciais="@_treino?.Cardios"
+                            MomentoInicial="@(_treino?.MomentoDoCardio ?? MomentoDoCardio.Depois)" OnSalvar="SalvarAsync"
                             Salvando="_salvando" Erro="@_erro" TextoDoBotao="Salvar treino" Cancelar="@($"alunos/{_alunoId}")" />
     }
 </ExigeDoisFatores>

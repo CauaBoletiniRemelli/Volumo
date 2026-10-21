@@ -135,6 +135,68 @@ public sealed class TreinosTests(VolumoApiFactory factory) : IClassFixture<Volum
         (await EnviarAsync(client, HttpMethod.Get, "/treinos", tokenPersonal)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task Treinos_aparecem_na_ordem_de_criacao_e_o_personal_reordena_para_os_dois_lados()
+    {
+        using var client = factory.CreateHttpsClient();
+        var (emailAluno, tokenAluno, _, tokenPersonal) = await AlunoViaConviteAsync(client, factory);
+        var alunoId = await IdDoUsuarioAsync(emailAluno);
+        var supino = await ExercicioDoCatalogoAsync(client, tokenPersonal);
+
+        // Nomes fora da ordem alfabética: a lista segue a ordem de criação, não o nome.
+        var c = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("C · Pernas", [supino])));
+        var a = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("A · Peito", [supino])));
+        var b = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("B · Costas", [supino])));
+        (await GetAsync<List<TreinoResumo>>(client, "/treinos", tokenAluno)).Select(t => t.Id).ShouldBe([c, a, b]);
+
+        (await EnviarAsync(client, HttpMethod.Put, $"/alunos/{alunoId}/treinos/ordem", tokenPersonal, corpo: new OrdemDosTreinos([a, b, c])))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await GetAsync<List<TreinoResumo>>(client, "/treinos", tokenAluno)).Select(t => t.Id).ShouldBe([a, b, c]);
+        (await GetAsync<List<TreinoResumo>>(client, $"/alunos/{alunoId}/treinos", tokenPersonal)).Select(t => t.Id).ShouldBe([a, b, c]);
+
+        // Treino novo (inclusive vindo de modelo) entra no fim.
+        var modelo = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, "/templates", tokenPersonal, corpo: Plano("D · Ombros", [supino])));
+        var d = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/templates/{modelo}/atribuir", tokenPersonal, corpo: new AtribuicaoDeTemplate(alunoId)));
+        (await GetAsync<List<TreinoResumo>>(client, "/treinos", tokenAluno)).Select(t => t.Id).ShouldBe([a, b, c, d]);
+    }
+
+    [Fact]
+    public async Task Reordenar_com_lista_incompleta_repetida_ou_com_treino_arquivado_responde_400()
+    {
+        using var client = factory.CreateHttpsClient();
+        var (emailAluno, _, _, tokenPersonal) = await AlunoViaConviteAsync(client, factory);
+        var alunoId = await IdDoUsuarioAsync(emailAluno);
+        var supino = await ExercicioDoCatalogoAsync(client, tokenPersonal);
+        var a = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("A", [supino])));
+        var b = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("B", [supino])));
+        var arquivado = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("Velho", [supino])));
+        (await EnviarAsync(client, HttpMethod.Post, $"/treinos/{arquivado}/inativar", tokenPersonal)).Dispose();
+        var rota = $"/alunos/{alunoId}/treinos/ordem";
+
+        (await EnviarAsync(client, HttpMethod.Put, rota, tokenPersonal, corpo: new OrdemDosTreinos([a]))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await EnviarAsync(client, HttpMethod.Put, rota, tokenPersonal, corpo: new OrdemDosTreinos([a, a]))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await EnviarAsync(client, HttpMethod.Put, rota, tokenPersonal, corpo: new OrdemDosTreinos([b, a, arquivado]))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await EnviarAsync(client, HttpMethod.Put, rota, tokenPersonal, corpo: new OrdemDosTreinos([b, Guid.CreateVersion7()]))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await EnviarAsync(client, HttpMethod.Put, rota, tokenPersonal, corpo: new OrdemDosTreinos([b, a]))).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task So_o_personal_do_aluno_reordena()
+    {
+        using var client = factory.CreateHttpsClient();
+        var (emailAluno, tokenAluno, _, tokenPersonal) = await AlunoViaConviteAsync(client, factory);
+        var (_, _, tokenOutroPersonal) = await PersonalComDoisFatoresAsync(client, factory);
+        var alunoId = await IdDoUsuarioAsync(emailAluno);
+        var a = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("A", [await ExercicioDoCatalogoAsync(client, tokenPersonal)])));
+        var rota = $"/alunos/{alunoId}/treinos/ordem";
+        var corpo = new OrdemDosTreinos([a]);
+
+        (await EnviarAsync(client, HttpMethod.Put, rota, null, corpo: corpo)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await EnviarAsync(client, HttpMethod.Put, rota, tokenAluno, corpo: corpo)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await EnviarAsync(client, HttpMethod.Put, rota, tokenOutroPersonal, corpo: corpo)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     private static async Task<T> GetAsync<T>(HttpClient client, string caminho, string token)
     {
         using var response = await EnviarAsync(client, HttpMethod.Get, caminho, token);

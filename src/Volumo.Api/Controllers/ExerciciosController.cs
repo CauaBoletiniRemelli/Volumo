@@ -15,7 +15,7 @@ namespace Volumo.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("exercicios")]
-public sealed class ExerciciosController(VolumoDbContext db, TimeProvider clock) : ControllerBase
+public sealed class ExerciciosController(VolumoDbContext db, ExerciseMapper mapper, TimeProvider clock) : ControllerBase
 {
     public const int ListLimit = 500;
 
@@ -38,7 +38,19 @@ public sealed class ExerciciosController(VolumoDbContext db, TimeProvider clock)
         }
 
         var exercicios = await query.OrderBy(e => e.Nome).Take(ListLimit).ToListAsync(ct);
-        return [.. exercicios.Select(ToResponse)];
+        return [.. exercicios.Select(mapper.ToSummary)];
+    }
+
+    /// <summary>
+    /// Detalhe com instruções, foto e vídeo de execução. Exercício inativado continua aparecendo para
+    /// quem já tem treino com ele; de outro personal → 404 (filtro de dono).
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    [Authorize(Policy = Policies.ContaAtiva)]
+    public async Task<ActionResult<ExercicioDetalhe>> Get(Guid id, CancellationToken ct)
+    {
+        var exercicio = await db.Exercicios.IgnoreQueryFilters([FiltrosDeConsulta.Ativos]).AsNoTracking().SingleOrDefaultAsync(e => e.Id == id, ct);
+        return exercicio is null ? NotFound() : mapper.ToDetail(exercicio);
     }
 
     [HttpPost]
@@ -49,7 +61,7 @@ public sealed class ExerciciosController(VolumoDbContext db, TimeProvider clock)
             Guid.CreateVersion7(), User.UsuarioId()!.Value, request.Nome, PlanMapper.ToDomain(request.GrupoMuscular));
         db.Exercicios.Add(exercicio);
         await db.SaveChangesAsync(ct);
-        return CreatedAtAction(nameof(List), null, ToResponse(exercicio));
+        return CreatedAtAction(nameof(Get), new { id = exercicio.Id }, mapper.ToSummary(exercicio));
     }
 
     [HttpPut("{id:guid}")]
@@ -97,6 +109,4 @@ public sealed class ExerciciosController(VolumoDbContext db, TimeProvider clock)
             : (null, Problem(statusCode: StatusCodes.Status403Forbidden, title: "Só exercícios criados por você podem ser alterados."));
     }
 
-    private static ExercicioResumo ToResponse(Exercicio e) =>
-        new(e.Id, e.Nome, PlanMapper.ToContract(e.GrupoMuscular), e.DoCatalogo);
 }

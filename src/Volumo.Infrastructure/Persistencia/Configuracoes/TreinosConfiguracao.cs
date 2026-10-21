@@ -13,7 +13,7 @@ internal sealed class TemplateTreinoConfiguracao : IEntityTypeConfiguration<Temp
         builder.ToTable("TemplatesTreino");
         builder.HasOne<PerfilPersonal>().WithMany().HasForeignKey(t => t.PersonalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(t => t.PersonalId);
-        PlanoDeTreinoMapeamento.Configurar(builder, "ItensTemplateTreino", "SeriesTemplateTreino");
+        PlanoDeTreinoMapeamento.Configurar(builder, "ItensTemplateTreino", "SeriesTemplateTreino", "CardiosTemplateTreino");
     }
 }
 
@@ -26,7 +26,7 @@ internal sealed class TreinoConfiguracao : IEntityTypeConfiguration<Treino>
         builder.HasOne<PerfilPersonal>().WithMany().HasForeignKey(t => t.PersonalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<TemplateTreino>().WithMany().HasForeignKey(t => t.TemplateOrigemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(t => t.AlunoId);
-        PlanoDeTreinoMapeamento.Configurar(builder, "ItensTreino", "SeriesTreino");
+        PlanoDeTreinoMapeamento.Configurar(builder, "ItensTreino", "SeriesTreino", "CardiosTreino");
     }
 }
 
@@ -36,11 +36,25 @@ internal sealed class TreinoConfiguracao : IEntityTypeConfiguration<Treino>
 /// </summary>
 internal static class PlanoDeTreinoMapeamento
 {
-    public static void Configurar<TPlano>(EntityTypeBuilder<TPlano> builder, string tabelaItens, string tabelaSeries)
+    public static void Configurar<TPlano>(EntityTypeBuilder<TPlano> builder, string tabelaItens, string tabelaSeries, string tabelaCardios)
         where TPlano : PlanoDeTreino
     {
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Nome).HasMaxLength(PlanoDeTreino.NomeMaximo);
+
+        // Treinos e modelos que já existiam ficam com "depois" (o padrão do domínio).
+        builder.Property(p => p.MomentoDoCardio).HasDefaultValue(MomentoDoCardio.Depois).HasSentinel((MomentoDoCardio)0);
+
+        builder.OwnsMany(p => p.Cardios, cardio =>
+        {
+            cardio.ToTable(tabelaCardios);
+            cardio.WithOwner().HasForeignKey("PlanoId");
+            cardio.HasKey(c => c.Id);
+            cardio.Property(c => c.Id).ValueGeneratedNever();
+            cardio.Property(c => c.Observacao).HasMaxLength(ItemCardio.ObservacaoMaxima);
+            cardio.HasOne<Exercicio>().WithMany().HasForeignKey(c => c.ExercicioId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Navigation(p => p.Cardios).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasQueryFilter(FiltrosDeConsulta.Ativos, p => p.InativadoEm == null);
 
         builder.OwnsMany(p => p.Itens, item =>

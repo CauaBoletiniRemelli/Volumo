@@ -74,6 +74,14 @@ public static class ChavesLocais
 
     public static string UltimasSeries(Guid usuarioId, Guid treinoId) => $"{Cache(usuarioId)}ultimas:{treinoId}";
 
+    /// <summary>Id da sessão de onde vieram as <see cref="UltimasSeries"/> (evita baixar de novo a mesma).</summary>
+    public static string UltimaSessaoBaixada(Guid usuarioId, Guid treinoId) => $"{Cache(usuarioId)}ultima-sessao:{treinoId}";
+
+    public static string Sessoes(Guid usuarioId) => $"{Cache(usuarioId)}sessoes";
+
+    /// <summary>Quando a cópia guardada em <paramref name="chave"/> veio da API.</summary>
+    public static string DataDaCopia(string chave) => $"{chave}:em";
+
     public static string SessaoEmAndamento(Guid usuarioId) => $"{usuarioId}:em-andamento";
 
     public static string Fila(Guid usuarioId) => $"{usuarioId}:fila";

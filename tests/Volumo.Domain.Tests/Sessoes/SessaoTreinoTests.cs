@@ -112,5 +112,45 @@ public sealed class SessaoTreinoTests
             Iniciar().RegistrarSerie(Guid.NewGuid(), _exercicioId, 10, 40m, null, Dados.Agora));
     }
 
+    [Fact]
+    public void Cardio_fica_separado_das_series_e_nao_duplica_no_reenvio()
+    {
+        var sessao = Iniciar();
+        var cardioId = Dados.NovoId();
+
+        var cardio = sessao.RegistrarCardio(cardioId, _exercicioId, 20, Dados.Agora.AddMinutes(25));
+        sessao.RegistrarCardio(cardioId, _exercicioId, 20, Dados.Agora.AddMinutes(25));
+
+        sessao.Cardios.ShouldBe([cardio]);
+        sessao.Registros.ShouldBeEmpty();
+        cardio.SessaoId.ShouldBe(sessao.Id);
+        cardio.DuracaoMinutos.ShouldBe(20);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(RegistroCardio.DuracaoMaximaMinutos + 1)]
+    public void Cardio_com_duracao_fora_dos_limites_falha(int minutos) =>
+        Should.Throw<RegraDeNegocioException>(() => Iniciar().RegistrarCardio(Dados.NovoId(), _exercicioId, minutos, Dados.Agora.AddMinutes(5)));
+
+    [Fact]
+    public void Cardio_antes_do_inicio_ou_em_sessao_finalizada_falha()
+    {
+        var sessao = Iniciar();
+        Should.Throw<RegraDeNegocioException>(() => sessao.RegistrarCardio(Dados.NovoId(), _exercicioId, 10, Dados.Agora.AddMinutes(-1)));
+
+        sessao.Finalizar(Dados.Agora.AddMinutes(30));
+        Should.Throw<RegraDeNegocioException>(() => sessao.RegistrarCardio(Dados.NovoId(), _exercicioId, 10, Dados.Agora.AddMinutes(10)));
+    }
+
+    [Fact]
+    public void Fim_antes_do_ultimo_cardio_falha()
+    {
+        var sessao = Iniciar();
+        sessao.RegistrarCardio(Dados.NovoId(), _exercicioId, 20, Dados.Agora.AddMinutes(40));
+
+        Should.Throw<RegraDeNegocioException>(() => sessao.Finalizar(Dados.Agora.AddMinutes(30)));
+    }
+
     private static SessaoTreino Iniciar() => SessaoTreino.Iniciar(Dados.NovoId(), Dados.NovoId(), Dados.NovoId(), Dados.Agora);
 }

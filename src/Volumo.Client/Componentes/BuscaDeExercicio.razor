@@ -2,25 +2,28 @@
 @using Volumo.Shared.Treinos
 @inject ApiVolumo Api
 
-<section class="busca painel" aria-label="Adicionar exercício">
+<section class="busca painel" aria-label="@Titulo">
     <div class="painel-cabecalho">
-        <h3>Adicionar exercício</h3>
+        <h3>@Titulo</h3>
         <button type="button" class="botao botao-texto" @onclick="OnFechar">Fechar</button>
     </div>
     <div class="painel-corpo pilha" style="--espaco: 14px">
         <div class="campo">
             <label class="rotulo" for="busca-exercicio">Buscar</label>
-            <input id="busca-exercicio" type="search" autocomplete="off" placeholder="Supino, agachamento..."
+            <input id="busca-exercicio" type="search" autocomplete="off" placeholder="@(SomenteGrupo is null ? "Supino, agachamento..." : "Esteira, bicicleta...")"
                    @bind="_termo" @bind:event="oninput" />
         </div>
 
-        <div class="grupos" role="group" aria-label="Grupo muscular">
-            <button type="button" class="grupo @(_grupo is null ? "grupo-ativo" : null)" aria-pressed="@(_grupo is null)" @onclick="() => _grupo = null">Todos</button>
-            @foreach (var grupo in Enum.GetValues<GrupoMuscular>())
-            {
-                <button type="button" class="grupo @(_grupo == grupo ? "grupo-ativo" : null)" aria-pressed="@(_grupo == grupo)" @onclick="() => _grupo = grupo">@Rotulos.De(grupo)</button>
-            }
-        </div>
+        @if (SomenteGrupo is null)
+        {
+            <div class="grupos" role="group" aria-label="Grupo muscular">
+                <button type="button" class="grupo @(_grupo is null ? "grupo-ativo" : null)" aria-pressed="@(_grupo is null)" @onclick="() => _grupo = null">Todos</button>
+                @foreach (var grupo in GruposVisiveis)
+                {
+                    <button type="button" class="grupo @(_grupo == grupo ? "grupo-ativo" : null)" aria-pressed="@(_grupo == grupo)" @onclick="() => _grupo = grupo">@Rotulos.De(grupo)</button>
+                }
+            </div>
+        }
 
         @if (_exercicios is null)
         {
@@ -40,7 +43,11 @@
                     {
                         <li>
                             <button type="button" class="resultado" @onclick="() => OnEscolher.InvokeAsync(exercicio)">
-                                <span>@exercicio.Nome</span>
+                                @if (exercicio.FotoUrl is { } foto)
+                                {
+                                    <img class="miniatura" src="@foto" alt="" loading="lazy" />
+                                }
+                                <span class="resultado-nome">@exercicio.Nome</span>
                                 <span class="secundario">@Rotulos.De(exercicio.GrupoMuscular)@(exercicio.DoCatalogo ? null : " · seu")</span>
                             </button>
                         </li>
@@ -63,15 +70,18 @@
                         <label class="rotulo" for="novo-exercicio-nome">Nome do exercício</label>
                         <input id="novo-exercicio-nome" maxlength="100" @bind="_novoNome" />
                     </div>
-                    <div class="campo">
-                        <label class="rotulo" for="novo-exercicio-grupo">Grupo muscular</label>
-                        <select id="novo-exercicio-grupo" @bind="_novoGrupo">
-                            @foreach (var grupo in Enum.GetValues<GrupoMuscular>())
-                            {
-                                <option value="@grupo">@Rotulos.De(grupo)</option>
-                            }
-                        </select>
-                    </div>
+                    @if (SomenteGrupo is null)
+                    {
+                        <div class="campo">
+                            <label class="rotulo" for="novo-exercicio-grupo">Grupo muscular</label>
+                            <select id="novo-exercicio-grupo" @bind="_novoGrupo">
+                                @foreach (var grupo in GruposVisiveis)
+                                {
+                                    <option value="@grupo">@Rotulos.De(grupo)</option>
+                                }
+                            </select>
+                        </div>
+                    }
                     @if (_erroCriacao is not null)
                     {
                         <p class="aviso aviso-erro" role="alert">@_erroCriacao</p>
@@ -105,8 +115,22 @@
     [Parameter, EditorRequired]
     public EventCallback OnFechar { get; set; }
 
+    [Parameter]
+    public string Titulo { get; set; } = "Adicionar exercício";
+
+    /// <summary>Mostra só um grupo (ex.: Cardio, na aba de cardio) e cria exercícios nele.</summary>
+    [Parameter]
+    public GrupoMuscular? SomenteGrupo { get; set; }
+
+    /// <summary>Esconde um grupo (ex.: Cardio na aba de musculação, que tem aba própria).</summary>
+    [Parameter]
+    public GrupoMuscular? SemGrupo { get; set; }
+
+    private IEnumerable<GrupoMuscular> GruposVisiveis => Enum.GetValues<GrupoMuscular>().Where(g => g != SemGrupo);
+
     protected override async Task OnInitializedAsync()
     {
+        _grupo = SomenteGrupo;
         var resultado = await Api.GetAsync<List<ExercicioResumo>>("exercicios");
         _exercicios = resultado.Valor;
         _erro = resultado.Erro;
@@ -116,6 +140,7 @@
     {
         var termo = Rotulos.ParaBusca(_termo.Trim());
         return _exercicios!
+            .Where(e => e.GrupoMuscular != SemGrupo)
             .Where(e => _grupo is null || e.GrupoMuscular == _grupo)
             .Where(e => termo.Length == 0 || Rotulos.ParaBusca(e.Nome).Contains(termo, StringComparison.Ordinal));
     }

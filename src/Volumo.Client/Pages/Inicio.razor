@@ -32,6 +32,10 @@
         {
             Navegacao.NavigateTo("treinos", replace: true);
         }
+        else if (usuario.IsInRole("Admin"))
+        {
+            Navegacao.NavigateTo(Sessao.ComDoisFatores ? "admin/exercicios" : "conta/2fa", replace: true);
+        }
         else
         {
             Navegacao.NavigateTo("conta", replace: true);

@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using Volumo.Api.Auth;
 using Volumo.Api.Tests.Support;
+using Volumo.Infrastructure.Identity;
 using Volumo.Shared.Autenticacao;
 using static Volumo.Api.Tests.Support.ContasDeTeste;
 
@@ -192,6 +196,118 @@ public sealed class DoisFatoresTests(VolumoApiFactory factory) : IClassFixture<V
             "/auth/login/recuperacao", new LoginComCodigoDeRecuperacao(await DesafioAsync(client, email), antigos[0]), Ct);
         comAntigo.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
+
+    [Fact]
+    public async Task Aparelho_lembrado_entra_so_com_a_senha_e_com_segundo_fator()
+    {
+        using var client = factory.CreateHttpsClient(handleCookies: false);
+        var conta = await PersonalComDoisFatoresAsync(client);
+        var aparelho = await LembrarAparelhoAsync(client, conta);
+
+        using var login = await LoginComAparelhoAsync(client, conta.Email, aparelho);
+
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var sessao = await login.Content.ReadFromJsonAsync<RespostaDeLogin>(Ct);
+        sessao!.Requer2Fa.ShouldBeFalse();
+        CookieDeAtualizacao(login).ShouldNotBeNull();
+        (await EnviarAsync(client, HttpMethod.Get, RotaDePersonal, sessao.TokenDeAcesso)).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Sem_pedir_para_lembrar_nao_grava_o_cookie_do_aparelho()
+    {
+        using var client = factory.CreateHttpsClient(handleCookies: false);
+        var conta = await PersonalComDoisFatoresAsync(client);
+
+        using var response = await client.PostAsJsonAsync("/auth/login/2fa", new SegundaEtapaDoLogin(await DesafioAsync(client, conta.Email), Totp.Codigo(conta.Chave)), Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        CookieDoAparelho(response).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Cookie_do_aparelho_grava_com_atributos_seguros()
+    {
+        using var client = factory.CreateHttpsClient(handleCookies: false);
+        var conta = await PersonalComDoisFatoresAsync(client);
+
+        using var response = await client.PostAsJsonAsync(
+            "/auth/login/2fa", new SegundaEtapaDoLogin(await DesafioAsync(client, conta.Email), Totp.Codigo(conta.Chave), LembrarAparelho: true), Ct);
+
+        var linha = response.Headers.GetValues("Set-Cookie").Single(v => v.StartsWith(TrustedDeviceCookie.Name + "=", StringComparison.Ordinal)).ToLowerInvariant();
+        linha.ShouldContain("httponly");
+        linha.ShouldContain("secure");
+        linha.ShouldContain("samesite=strict");
+        linha.ShouldContain("path=/auth");
+        linha.ShouldContain("expires=");
+    }
+
+    [Fact]
+    public async Task Aparelho_lembrado_continua_exigindo_a_senha_certa()
+    {
+        using var client = factory.CreateHttpsClient(handleCookies: false);
+        var conta = await PersonalComDoisFatoresAsync(client);
+        var aparelho = await LembrarAparelhoAsync(client, conta);
+
+        using var login = await LoginComAparelhoAsync(client, conta.Email, aparelho, senha: "senha errada de teste");
+
+        login.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        CookieDeAtualizacao(login).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Cookie_de_aparelho_de_outra_conta_ou_adulterado_pede_o_codigo()
+    {
+        using var client = factory.CreateHttpsClient(handleCookies: false);
+        var outra = await PersonalComDoisFatoresAsync(client);
+        var aparelhoDaOutra = await LembrarAparelhoAsync(client, outra);
+        var conta = await PersonalComDoisFatoresAsync(client);
+
+        using var comOutro = await LoginComAparelhoAsync(client, conta.Email, aparelhoDaOutra);
+        using var adulterado = await LoginComAparelhoAsync(client, outra.Email, aparelhoDaOutra[..^3] + "abc");
+
+        (await comOutro.Content.ReadFromJsonAsync<RespostaDeLogin>(Ct))!.Requer2Fa.ShouldBeTrue();
+        (await adulterado.Content.ReadFromJsonAsync<RespostaDeLogin>(Ct))!.Requer2Fa.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Mudanca_de_seguranca_na_conta_esquece_os_aparelhos()
+    {
+        using var client = factory.CreateHttpsClient(handleCookies: false);
+        var conta = await PersonalComDoisFatoresAsync(client);
+        var aparelho = await LembrarAparelhoAsync(client, conta);
+
+        // Mesmo efeito de trocar a senha, refazer o 2FA ou suspender a conta.
+        using (var escopo = factory.Services.CreateScope())
+        {
+            var userManager = escopo.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+            (await userManager.UpdateSecurityStampAsync((await userManager.FindByEmailAsync(conta.Email))!)).Succeeded.ShouldBeTrue();
+        }
+
+        using var login = await LoginComAparelhoAsync(client, conta.Email, aparelho);
+
+        (await login.Content.ReadFromJsonAsync<RespostaDeLogin>(Ct))!.Requer2Fa.ShouldBeTrue();
+    }
+
+    private static async Task<string> LembrarAparelhoAsync(HttpClient client, (string Email, string Chave, IReadOnlyList<string> Codigos) conta)
+    {
+        using var response = await client.PostAsJsonAsync(
+            "/auth/login/2fa", new SegundaEtapaDoLogin(await DesafioAsync(client, conta.Email), Totp.Codigo(conta.Chave), LembrarAparelho: true), Ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        return CookieDoAparelho(response)!;
+    }
+
+    private static async Task<HttpResponseMessage> LoginComAparelhoAsync(HttpClient client, string email, string cookieDoAparelho, string senha = SenhaValida)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/auth/login") { Content = JsonContent.Create(new PedidoDeLogin(email, senha)) };
+        request.Headers.Add("Cookie", $"{TrustedDeviceCookie.Name}={cookieDoAparelho}");
+        return await client.SendAsync(request, Ct);
+    }
+
+    private static string? CookieDoAparelho(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("Set-Cookie", out var valores)
+            ? valores.Where(v => v.StartsWith(TrustedDeviceCookie.Name + "=", StringComparison.Ordinal)).Select(v => v[(TrustedDeviceCookie.Name.Length + 1)..].Split(';')[0]).FirstOrDefault()
+            : null;
 
     private async Task<(string Email, string Chave, IReadOnlyList<string> Codigos)> PersonalComDoisFatoresAsync(HttpClient client)
     {

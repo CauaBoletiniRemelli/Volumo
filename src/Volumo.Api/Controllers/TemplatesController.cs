@@ -26,20 +26,20 @@ public sealed class TemplatesController(VolumoDbContext db, PlanMapper mapper, T
     public async Task<ActionResult<TemplateDetalhe>> Get(Guid id, CancellationToken ct)
     {
         var template = await db.TemplatesTreino.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, ct);
-        return template is null ? NotFound() : new TemplateDetalhe(template.Id, template.Nome, await mapper.ToOutputAsync(template, ct));
+        return template is null ? NotFound() : await mapper.ToDetailAsync(template, ct);
     }
 
     [HttpPost]
     public async Task<ActionResult<RecursoCriado>> Create(PlanoDeTreinoEntrada request, CancellationToken ct)
     {
-        var itens = await mapper.ToDefinitionsAsync(request, ct);
-        if (itens is null)
+        var plano = await mapper.ToDefinitionsAsync(request, ct);
+        if (plano is null)
         {
             return InvalidExercise();
         }
 
         var template = TemplateTreino.Criar(Guid.CreateVersion7(), User.UsuarioId()!.Value, request.Nome);
-        template.SubstituirItens(itens);
+        plano.ApplyTo(template);
         db.TemplatesTreino.Add(template);
         await db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(Get), new { id = template.Id }, new RecursoCriado(template.Id));
@@ -55,14 +55,14 @@ public sealed class TemplatesController(VolumoDbContext db, PlanMapper mapper, T
             return NotFound();
         }
 
-        var itens = await mapper.ToDefinitionsAsync(request, ct);
-        if (itens is null)
+        var plano = await mapper.ToDefinitionsAsync(request, ct);
+        if (plano is null)
         {
             return InvalidExercise();
         }
 
         template.Renomear(request.Nome);
-        template.SubstituirItens(itens);
+        plano.ApplyTo(template);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -95,6 +95,7 @@ public sealed class TemplatesController(VolumoDbContext db, PlanMapper mapper, T
         }
 
         var treino = template.GerarTreinoPara(Guid.CreateVersion7(), request.AlunoId);
+        await TreinosController.PlaceAtEndAsync(db, treino, ct);
         db.Treinos.Add(treino);
         await db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(TreinosController.Get), "Treinos", new { id = treino.Id }, new RecursoCriado(treino.Id));

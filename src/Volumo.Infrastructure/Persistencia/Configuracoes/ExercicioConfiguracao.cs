@@ -15,6 +15,15 @@ internal sealed class ExercicioConfiguracao : IEntityTypeConfiguration<Exercicio
         builder.HasOne<PerfilPersonal>().WithMany().HasForeignKey(e => e.PersonalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(e => e.PersonalId);
         builder.HasQueryFilter(FiltrosDeConsulta.Ativos, e => e.InativadoEm == null);
+
+        // Detalhes do catálogo (21/10/2026). Listas guardadas como texto nos campos privados.
+        builder.Ignore(e => e.MusculosSecundarios);
+        builder.Ignore(e => e.Instrucoes);
+        builder.Property<string?>("_secundarios").HasColumnName("MusculosSecundarios").HasMaxLength(200);
+        builder.Property<string?>("_instrucoes").HasColumnName("Instrucoes")
+            .HasMaxLength((Exercicio.MaximoPassos * (Exercicio.PassoMaximo + 1)) - 1);
+        builder.Property(e => e.FotoChave).HasMaxLength(Exercicio.ChaveDeArquivoMaxima);
+        builder.Property(e => e.VideoChave).HasMaxLength(Exercicio.ChaveDeArquivoMaxima);
         builder.HasData(CatalogoInicial.Exercicios.Select((e, i) => new
         {
             Id = CatalogoInicial.Id(i + 1),
@@ -76,6 +85,15 @@ internal static class CatalogoInicial
         ("Levantamento terra", GrupoMuscular.CorpoInteiro),
         ("Esteira", GrupoMuscular.Cardio),
         ("Bicicleta ergométrica", GrupoMuscular.Cardio),
+
+        // Cardio (21/10/2026): para a aba de cardio do construtor.
+        ("Elíptico", GrupoMuscular.Cardio),
+        ("Remo ergômetro", GrupoMuscular.Cardio),
+        ("Escada ergométrica", GrupoMuscular.Cardio),
+        ("Bicicleta de spinning", GrupoMuscular.Cardio),
+        ("Pular corda", GrupoMuscular.Cardio),
+        ("Caminhada ao ar livre", GrupoMuscular.Cardio),
+        ("Corrida ao ar livre", GrupoMuscular.Cardio),
     ];
 
     /// <summary>Id fixo no formato GUID v7 para o exercício na posição <paramref name="numero"/> (a partir de 1).</summary>

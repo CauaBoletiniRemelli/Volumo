@@ -40,11 +40,13 @@
         grid-template-columns: 232px minmax(0, 1fr);
     }
 
+    /* Fixa na lateral enquanto a página rola. "inset" define o top também: não separar em top + inset: auto. */
     .app-nav {
         position: sticky;
-        top: 0;
-        inset: auto;
+        inset: 0 auto auto 0;
+        align-self: start;
         height: 100vh;
+        overflow-y: auto;
         flex-direction: column;
         padding: 32px 0;
         border-top: 0;

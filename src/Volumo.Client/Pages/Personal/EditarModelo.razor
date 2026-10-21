@@ -19,7 +19,8 @@
     }
     else
     {
-        <ConstrutorDeTreino NomeInicial="@_modelo?.Nome" ItensIniciais="@_modelo?.Itens" OnSalvar="SalvarAsync"
+        <ConstrutorDeTreino NomeInicial="@_modelo?.Nome" ItensIniciais="@_modelo?.Itens" CardiosIniciais="@_modelo?.Cardios"
+                            MomentoInicial="@(_modelo?.MomentoDoCardio ?? MomentoDoCardio.Depois)" OnSalvar="SalvarAsync"
                             Salvando="_salvando" Erro="@_erro" TextoDoBotao="Salvar modelo" Cancelar="modelos" />
     }
 </ExigeDoisFatores>

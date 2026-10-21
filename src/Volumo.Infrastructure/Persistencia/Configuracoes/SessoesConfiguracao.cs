@@ -19,6 +19,9 @@ internal sealed class SessaoTreinoConfiguracao : IEntityTypeConfiguration<Sessao
         builder.HasMany(s => s.Registros).WithOne().HasForeignKey(r => r.SessaoId).OnDelete(DeleteBehavior.Restrict);
         builder.Navigation(s => s.Registros).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.HasMany(s => s.Cardios).WithOne().HasForeignKey(c => c.SessaoId).OnDelete(DeleteBehavior.Restrict);
+        builder.Navigation(s => s.Cardios).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Painel do personal: último treino de cada aluno.
         builder.HasIndex(s => new { s.AlunoId, s.IniciadaEm });
     }
@@ -34,5 +37,17 @@ internal sealed class RegistroSerieConfiguracao : IEntityTypeConfiguration<Regis
         builder.Property(r => r.Id).ValueGeneratedNever();
         builder.HasOne<Exercicio>().WithMany().HasForeignKey(r => r.ExercicioId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(r => r.ExercicioId);
+    }
+}
+
+internal sealed class RegistroCardioConfiguracao : IEntityTypeConfiguration<RegistroCardio>
+{
+    public void Configure(EntityTypeBuilder<RegistroCardio> builder)
+    {
+        builder.ToTable("RegistrosCardio");
+
+        // Id vem do app (offline), como nas séries.
+        builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.HasOne<Exercicio>().WithMany().HasForeignKey(c => c.ExercicioId).OnDelete(DeleteBehavior.Restrict);
     }
 }

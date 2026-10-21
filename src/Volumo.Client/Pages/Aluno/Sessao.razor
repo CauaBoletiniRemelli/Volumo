@@ -19,6 +19,10 @@
             <div><dt class="rotulo">Volume</dt><dd class="numero">@Rotulos.Kg(resumo.VolumeKg) kg</dd></div>
             <div><dt class="rotulo">Duração</dt><dd class="numero">@resumo.Minutos min</dd></div>
         </dl>
+        @if (resumo.MinutosDeCardio > 0)
+        {
+            <p class="secundario">Cardio: <span class="numero">@resumo.MinutosDeCardio min</span></p>
+        }
         <IndicadorDeSincronizacao />
         @if (Sincronizacao.Pendentes == 0 && Sincronizacao.Recusadas.Count == 0)
         {
@@ -39,112 +43,173 @@ else if (_treino is null || _sessao is null)
 }
 else
 {
-    var item = _itens[_sessao.ExercicioAtual];
-    var feitas = Feitas(_sessao.ExercicioAtual);
+    var etapa = _etapas[_sessao.ExercicioAtual];
 
+    @* Durante o descanso o treino fica mais escuro (continua usável) e o relógio ganha o destaque. *@
+    <div class="sessao-conteudo @(_sessao.DescansoAte is not null ? "sessao-em-descanso" : null)">
     <header class="sessao-cabecalho">
-        <p class="rotulo"><a href="treinos/@TreinoId">@_treino.Nome</a> · exercício <span class="numero">@(_sessao.ExercicioAtual + 1)</span> de <span class="numero">@_itens.Count</span></p>
-        <nav class="mapa" aria-label="Exercícios do treino">
-            @for (var i = 0; i < _itens.Count; i++)
+        <p class="rotulo"><a href="treinos/@TreinoId">@_treino.Nome</a> · @(etapa.Cardio ? "cardio" : "exercício") <span class="numero">@(_sessao.ExercicioAtual + 1)</span> de <span class="numero">@_etapas.Count</span></p>
+        <nav class="mapa" aria-label="Etapas do treino">
+            @for (var i = 0; i < _etapas.Count; i++)
             {
                 var indice = i;
-                var completo = Feitas(indice).Count >= _itens[indice].Series.Count;
-                <button type="button" class="mapa-item @(indice == _sessao.ExercicioAtual ? "mapa-atual" : null) @(completo ? "mapa-feito" : null)"
-                        aria-label="@_itens[indice].NomeDoExercicio" aria-current="@(indice == _sessao.ExercicioAtual ? "step" : null)" @onclick="() => IrParaAsync(indice)">
-                    @(indice + 1)
+                var daVez = _etapas[indice];
+                <button type="button" class="mapa-item @(daVez.Cardio ? "mapa-cardio" : null) @(indice == _sessao.ExercicioAtual ? "mapa-atual" : null) @(Completa(daVez) ? "mapa-feito" : null)"
+                        aria-label="@NomeDa(daVez)" aria-current="@(indice == _sessao.ExercicioAtual ? "step" : null)" @onclick="() => IrParaAsync(indice)">
+                    @RotuloNoMapa(daVez)
                 </button>
             }
         </nav>
-        <h1 class="exercicio-nome">@item.NomeDoExercicio</h1>
-        @if (!string.IsNullOrWhiteSpace(item.Observacao))
+        @if (etapa.Cardio)
         {
-            <p class="secundario">@item.Observacao</p>
+            var cardio = _cardios[etapa.Indice];
+            <p class="rotulo etapa-tipo">Cardio</p>
+            <h1 class="exercicio-nome">@cardio.NomeDoExercicio</h1>
+            <p class="secundario">
+                meta <span class="numero">@cardio.DuracaoMinutos min</span>@(string.IsNullOrWhiteSpace(cardio.Observacao) ? null : $" · {cardio.Observacao}")
+            </p>
+            <ComoFazer ExercicioId="cardio.ExercicioId" />
+        }
+        else
+        {
+            var item = _itens[etapa.Indice];
+            <h1 class="exercicio-nome">@item.NomeDoExercicio</h1>
+            @if (!string.IsNullOrWhiteSpace(item.Observacao))
+            {
+                <p class="secundario">@item.Observacao</p>
+            }
+            <ComoFazer ExercicioId="item.ExercicioId" />
         }
     </header>
 
-    <ol class="series-da-sessao">
-        @for (var i = 0; i < item.Series.Count; i++)
+    @if (etapa.Cardio)
+    {
+        var cardio = _cardios[etapa.Indice];
+        var feito = FeitoDoCardio(etapa.Indice);
+        if (feito is not null)
         {
-            var ordem = i; // cópia: o clique em "Feito" não pode capturar a variável do laço
-            var prescrita = item.Series[ordem];
-            var feita = feitas.Find(f => f.Ordem == ordem);
-            var ativa = feita is null && ordem == feitas.Count;
-            <li class="serie-sessao @(feita is not null ? "serie-feita" : ativa ? "serie-ativa" : null)">
+            <div class="serie-sessao serie-feita cardio-feito">
                 <div class="serie-linha">
-                    <span class="serie-num numero">@(ordem + 1)</span>
-                    @if (feita is not null)
-                    {
-                        <span class="numero serie-resultado">@Rotulos.Kg(feita.CargaKg) kg × @feita.Repeticoes</span>
-                        <span class="secundario">@(feita.Rir is { } rir ? $"RIR {rir}" : "feita")</span>
-                    }
-                    else
-                    {
-                        <span class="secundario">
-                            meta <span class="numero">@Rotulos.Repeticoes(prescrita.RepeticoesMinimas, prescrita.RepeticoesMaximas)</span>
-                            @if (prescrita.CargaKg is { } carga)
-                            {
-                                <span class="numero"> · @Rotulos.Kg(carga) kg</span>
-                            }
-                            @(prescrita.Tipo == TipoDeSerie.Aquecimento ? " · aquecimento" : null)
-                        </span>
-                    }
+                    <span class="numero serie-resultado">@feito.DuracaoMinutos min</span>
+                    <span class="secundario">feito</span>
                 </div>
+            </div>
+            <button type="button" class="botao botao-texto" @onclick="() => DesfazerCardioAsync(etapa.Indice)">Desfazer o cardio</button>
+        }
+        else
+        {
+            <div class="serie-sessao serie-ativa">
+                <div class="registro registro-cardio">
+                    <div class="ajuste">
+                        <span class="rotulo">Minutos feitos</span>
+                        <div class="ajuste-controles">
+                            <button type="button" class="passo" aria-label="Menos 5 minutos" @onclick="() => AjustarMinutos(-5)">−</button>
+                            <input class="ajuste-valor numero" type="number" inputmode="numeric" min="1" max="300" aria-label="Minutos de cardio" @bind="_minutos" />
+                            <button type="button" class="passo" aria-label="Mais 5 minutos" @onclick="() => AjustarMinutos(5)">+</button>
+                        </div>
+                    </div>
+                    @if (_erroSerie is not null)
+                    {
+                        <p class="campo-erro" role="alert">@_erroSerie</p>
+                    }
+                    <button type="button" class="botao botao-principal botao-largo botao-grande" @onclick="() => RegistrarCardioAsync(etapa.Indice)">Feito</button>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        var item = _itens[etapa.Indice];
+        var feitas = Feitas(etapa.Indice);
 
-                @if (ativa)
-                {
-                    <div class="registro">
-                        <div class="ajuste">
-                            <span class="rotulo">Carga (kg)</span>
-                            <div class="ajuste-controles">
-                                <button type="button" class="passo" aria-label="Menos 2,5 kg" @onclick="() => AjustarCarga(-2.5m)">−</button>
-                                <input class="ajuste-valor numero" type="number" inputmode="decimal" min="0" max="1000" step="0.5" aria-label="Carga em kg" @bind="_carga" />
-                                <button type="button" class="passo" aria-label="Mais 2,5 kg" @onclick="() => AjustarCarga(2.5m)">+</button>
-                            </div>
-                        </div>
-                        <div class="ajuste">
-                            <span class="rotulo">Repetições</span>
-                            <div class="ajuste-controles">
-                                <button type="button" class="passo" aria-label="Menos uma repetição" @onclick="() => AjustarRepeticoes(-1)">−</button>
-                                <input class="ajuste-valor numero" type="number" inputmode="numeric" min="0" max="200" aria-label="Repetições" @bind="_repeticoes" />
-                                <button type="button" class="passo" aria-label="Mais uma repetição" @onclick="() => AjustarRepeticoes(1)">+</button>
-                            </div>
-                        </div>
-                        <div class="ajuste">
-                            <span class="rotulo">Repetições de sobra (opcional)</span>
-                            <div class="rir" role="group" aria-label="Repetições de sobra">
-                                @for (var r = 0; r <= 5; r++)
+        <ol class="series-da-sessao">
+            @for (var i = 0; i < item.Series.Count; i++)
+            {
+                var ordem = i; // cópia: o clique em "Feito" não pode capturar a variável do laço
+                var prescrita = item.Series[ordem];
+                var feita = feitas.Find(f => f.Ordem == ordem);
+                var ativa = feita is null && ordem == feitas.Count;
+                <li class="serie-sessao @(feita is not null ? "serie-feita" : ativa ? "serie-ativa" : null)">
+                    <div class="serie-linha">
+                        <span class="serie-num numero">@(ordem + 1)</span>
+                        @if (feita is not null)
+                        {
+                            <span class="numero serie-resultado">@Rotulos.Kg(feita.CargaKg) kg × @feita.Repeticoes</span>
+                            <span class="secundario">@(feita.Rir is { } rir ? $"RIR {rir}" : "feita")</span>
+                        }
+                        else
+                        {
+                            <span class="secundario">
+                                meta <span class="numero">@Rotulos.Repeticoes(prescrita.RepeticoesMinimas, prescrita.RepeticoesMaximas)</span>
+                                @if (prescrita.CargaKg is { } carga)
                                 {
-                                    var valor = r;
-                                    <button type="button" class="rir-opcao numero @(_rir == valor ? "rir-ativa" : null)" aria-pressed="@(_rir == valor)"
-                                            @onclick="() => _rir = _rir == valor ? null : valor">@(valor == 5 ? "5+" : valor)</button>
+                                    <span class="numero"> · @Rotulos.Kg(carga) kg</span>
+                                }
+                                @(prescrita.Tipo == TipoDeSerie.Aquecimento ? " · aquecimento" : null)
+                            </span>
+                        }
+                    </div>
+
+                    @if (ativa)
+                    {
+                        <div class="registro">
+                            <div class="ajuste">
+                                <span class="rotulo">Carga (kg)@(prescrita.CargaKg is not null ? " · recomendada pelo personal" : null)</span>
+                                <div class="ajuste-controles">
+                                    <button type="button" class="passo" aria-label="Menos 2,5 kg" @onclick="() => AjustarCarga(-2.5m)">−</button>
+                                    <input class="ajuste-valor numero" type="number" inputmode="decimal" min="0" max="1000" step="0.5" aria-label="Carga em kg" @bind="_carga" />
+                                    <button type="button" class="passo" aria-label="Mais 2,5 kg" @onclick="() => AjustarCarga(2.5m)">+</button>
+                                </div>
+                                @if (_anterior is { } anterior)
+                                {
+                                    <span class="campo-ajuda">Última vez: <span class="numero">@Rotulos.Kg(anterior.CargaKg) kg × @anterior.Repeticoes</span></span>
                                 }
                             </div>
+                            <div class="ajuste">
+                                <span class="rotulo">Repetições</span>
+                                <div class="ajuste-controles">
+                                    <button type="button" class="passo" aria-label="Menos uma repetição" @onclick="() => AjustarRepeticoes(-1)">−</button>
+                                    <input class="ajuste-valor numero" type="number" inputmode="numeric" min="0" max="200" aria-label="Repetições" @bind="_repeticoes" />
+                                    <button type="button" class="passo" aria-label="Mais uma repetição" @onclick="() => AjustarRepeticoes(1)">+</button>
+                                </div>
+                            </div>
+                            <div class="ajuste">
+                                <span class="rotulo">Repetições de sobra (opcional)</span>
+                                <div class="rir" role="group" aria-label="Repetições de sobra">
+                                    @for (var r = 0; r <= 5; r++)
+                                    {
+                                        var valor = r;
+                                        <button type="button" class="rir-opcao numero @(_rir == valor ? "rir-ativa" : null)" aria-pressed="@(_rir == valor)"
+                                                @onclick="() => _rir = _rir == valor ? null : valor">@(valor == 5 ? "5+" : valor)</button>
+                                    }
+                                </div>
+                            </div>
+                            @if (_erroSerie is not null)
+                            {
+                                <p class="campo-erro" role="alert">@_erroSerie</p>
+                            }
+                            <button type="button" class="botao botao-principal botao-largo botao-grande" @onclick="() => RegistrarAsync(ordem)">Feito</button>
                         </div>
-                        @if (_erroSerie is not null)
-                        {
-                            <p class="campo-erro" role="alert">@_erroSerie</p>
-                        }
-                        <button type="button" class="botao botao-principal botao-largo botao-grande" @onclick="() => RegistrarAsync(ordem)">Feito</button>
-                    </div>
-                }
-            </li>
-        }
-    </ol>
+                    }
+                </li>
+            }
+        </ol>
 
-    @if (feitas.Count > 0)
-    {
-        <button type="button" class="botao botao-texto" @onclick="DesfazerAsync">Desfazer a última série</button>
+        @if (feitas.Count > 0)
+        {
+            <button type="button" class="botao botao-texto" @onclick="DesfazerAsync">Desfazer a última série</button>
+        }
     }
 
     <div class="sessao-navegacao">
         <button type="button" class="botao" disabled="@(_sessao.ExercicioAtual == 0)" @onclick="() => IrParaAsync(_sessao.ExercicioAtual - 1)">Anterior</button>
-        <button type="button" class="botao" disabled="@(_sessao.ExercicioAtual == _itens.Count - 1)" @onclick="() => IrParaAsync(_sessao.ExercicioAtual + 1)">Próximo</button>
+        <button type="button" class="botao" disabled="@(_sessao.ExercicioAtual == _etapas.Count - 1)" @onclick="() => IrParaAsync(_sessao.ExercicioAtual + 1)">Próximo</button>
     </div>
 
     <div class="finalizar pilha" style="--espaco: 12px">
         @if (_confirmandoFim)
         {
-            <p class="aviso">Ainda faltam <span class="numero">@SeriesFaltando()</span> séries. Finalizar assim mesmo?</p>
+            <p class="aviso">@Faltando() Finalizar assim mesmo?</p>
             <div class="linha-de-botoes">
                 <button type="button" class="botao botao-principal" disabled="@_finalizando" @onclick="FinalizarAsync">Finalizar</button>
                 <button type="button" class="botao" @onclick="() => _confirmandoFim = false">Continuar treinando</button>
@@ -155,11 +220,17 @@ else
             <button type="button" class="botao botao-largo" disabled="@_finalizando" @onclick="PedirFimAsync">Finalizar treino</button>
         }
     </div>
+    </div>
 
     @if (_sessao.DescansoAte is { } fim)
     {
         var restante = fim - DateTimeOffset.UtcNow;
         <div class="descanso" role="timer" aria-live="off">
+            @if (_sessao.DescansoDesde is { } inicio && fim > inicio)
+            {
+                var decorrido = Math.Clamp((DateTimeOffset.UtcNow - inicio) / (fim - inicio), 0, 1);
+                <span class="descanso-progresso" style="--decorrido: @decorrido.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)" aria-hidden="true"></span>
+            }
             <span class="rotulo">Descanso</span>
             <span class="descanso-tempo numero">@Formatar(restante)</span>
             <div class="descanso-acoes">
@@ -173,20 +244,30 @@ else
 @code {
     private TreinoDetalhe? _treino;
     private List<ItemDoPlanoSaida> _itens = [];
+    private List<CardioDoPlanoSaida> _cardios = [];
+
+    /// <summary>Ordem de execução: musculação e cardio, com o cardio antes ou depois conforme a escolha.</summary>
+    private List<Etapa> _etapas = [];
     private SessaoEmAndamento? _sessao;
     private Dictionary<Guid, List<SerieAnterior>> _ultimas = [];
     private Timer? _relogio;
     private string? _erro;
     private string? _erroSerie;
+    private SerieAnterior? _anterior;
     private decimal _carga;
     private int _repeticoes;
     private int? _rir;
+    private int _minutos;
     private bool _confirmandoFim;
     private bool _finalizando;
     private Resumo? _resumo;
 
     [Parameter]
     public Guid TreinoId { get; set; }
+
+    /// <summary>"antes" ou "depois": por onde o aluno escolheu começar (vem da tela do treino).</summary>
+    [SupplyParameterFromQuery(Name = "cardio")]
+    public string? CardioEscolhido { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -199,7 +280,8 @@ else
 
         _treino = treino.Valor;
         _itens = [.. _treino.Itens.OrderBy(i => i.Ordem)];
-        if (_itens.Count == 0)
+        _cardios = [.. _treino.CardiosOuVazio.OrderBy(c => c.Ordem)];
+        if (_itens.Count == 0 && _cardios.Count == 0)
         {
             _erro = "Este treino não tem exercícios.";
             return;
@@ -209,8 +291,24 @@ else
         var emAndamento = await Treinos.EmAndamentoAsync();
         _sessao = emAndamento is not null && emAndamento.TreinoId == TreinoId
             ? emAndamento
-            : new SessaoEmAndamento { Id = Guid.CreateVersion7(), TreinoId = TreinoId, IniciadaEm = DateTimeOffset.UtcNow };
-        _sessao.ExercicioAtual = Math.Clamp(_sessao.ExercicioAtual, 0, _itens.Count - 1);
+            : new SessaoEmAndamento
+            {
+                Id = Guid.CreateVersion7(),
+                TreinoId = TreinoId,
+                IniciadaEm = DateTimeOffset.UtcNow,
+                CardioAntes = CardioEscolhido switch
+                {
+                    "antes" => true,
+                    "depois" => false,
+                    _ => _treino.MomentoDoCardio == MomentoDoCardio.Antes,
+                },
+            };
+
+        // Sessão começada antes do cardio existir: o cardio entra no fim (os índices da musculação não mudam).
+        var musculacao = Enumerable.Range(0, _itens.Count).Select(i => new Etapa(false, i));
+        var cardio = Enumerable.Range(0, _cardios.Count).Select(i => new Etapa(true, i));
+        _etapas = _sessao.CardioAntes == true ? [.. cardio, .. musculacao] : [.. musculacao, .. cardio];
+        _sessao.ExercicioAtual = Math.Clamp(_sessao.ExercicioAtual, 0, _etapas.Count - 1);
         await Treinos.GuardarEmAndamentoAsync(_sessao);
 
         PrepararValores();
@@ -225,32 +323,73 @@ else
         }
     }
 
+    private Etapa Atual => _etapas[_sessao!.ExercicioAtual];
+
     private List<SerieFeita> Feitas(int item) => [.. _sessao!.Series.Where(s => s.Item == item).OrderBy(s => s.Ordem)];
 
-    private int SeriesFaltando() => _itens.Select((item, i) => Math.Max(0, item.Series.Count - Feitas(i).Count)).Sum();
+    private CardioFeito? FeitoDoCardio(int cardio) => _sessao!.Cardios.Find(c => c.Cardio == cardio);
 
-    /// <summary>Valores sugeridos para a próxima série: a última vez deste treino, senão a prescrição.</summary>
+    private bool Completa(Etapa etapa) =>
+        etapa.Cardio ? FeitoDoCardio(etapa.Indice) is not null : Feitas(etapa.Indice).Count >= _itens[etapa.Indice].Series.Count;
+
+    private string NomeDa(Etapa etapa) => etapa.Cardio ? $"Cardio: {_cardios[etapa.Indice].NomeDoExercicio}" : _itens[etapa.Indice].NomeDoExercicio;
+
+    /// <summary>Musculação numerada (1, 2, 3...); cardio como "C" (C1, C2 quando há mais de um).</summary>
+    private string RotuloNoMapa(Etapa etapa) =>
+        etapa.Cardio ? (_cardios.Count == 1 ? "C" : $"C{etapa.Indice + 1}") : (etapa.Indice + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private string? Faltando()
+    {
+        var series = _itens.Select((item, i) => Math.Max(0, item.Series.Count - Feitas(i).Count)).Sum();
+        var cardios = Enumerable.Range(0, _cardios.Count).Count(c => FeitoDoCardio(c) is null);
+        var partes = new List<string>();
+        if (series > 0)
+        {
+            partes.Add($"{series} {Rotulos.Plural(series, "série", "séries")}");
+        }
+
+        if (cardios > 0)
+        {
+            partes.Add($"{cardios} {Rotulos.Plural(cardios, "cardio", "cardios")}");
+        }
+
+        return partes.Count == 0 ? null : $"Ainda {Rotulos.Plural(series + cardios, "falta", "faltam")} {string.Join(" e ", partes)}.";
+    }
+
+    /// <summary>
+    /// Valores sugeridos para a etapa atual. Carga: a que o personal prescreveu; sem prescrição, a da
+    /// última vez deste treino, senão a da série anterior. Cardio: os minutos prescritos.
+    /// </summary>
     private void PrepararValores()
     {
-        var indice = _sessao!.ExercicioAtual;
-        var item = _itens[indice];
-        var feitas = Feitas(indice);
         _rir = null;
         _erroSerie = null;
+        _anterior = null;
+        if (Atual.Cardio)
+        {
+            _minutos = _cardios[Atual.Indice].DuracaoMinutos;
+            return;
+        }
+
+        var indice = Atual.Indice;
+        var item = _itens[indice];
+        var feitas = Feitas(indice);
         if (feitas.Count >= item.Series.Count)
         {
             return;
         }
 
         var prescrita = item.Series[feitas.Count];
-        var anterior = _ultimas.GetValueOrDefault(item.ExercicioId)?.ElementAtOrDefault(feitas.Count);
-        _carga = Rotulos.SemZeros(anterior?.CargaKg ?? (feitas.Count > 0 ? feitas[^1].CargaKg : (decimal?)null) ?? prescrita.CargaKg ?? 0);
-        _repeticoes = anterior?.Repeticoes ?? prescrita.RepeticoesMaximas;
+        _anterior = _ultimas.GetValueOrDefault(item.ExercicioId)?.ElementAtOrDefault(feitas.Count);
+        _carga = Rotulos.SemZeros(prescrita.CargaKg ?? _anterior?.CargaKg ?? (feitas.Count > 0 ? feitas[^1].CargaKg : (decimal?)null) ?? 0);
+        _repeticoes = _anterior?.Repeticoes ?? prescrita.RepeticoesMaximas;
     }
 
     private void AjustarCarga(decimal passo) => _carga = Rotulos.SemZeros(Math.Clamp(_carga + passo, 0, 1000));
 
     private void AjustarRepeticoes(int passo) => _repeticoes = Math.Clamp(_repeticoes + passo, 0, 200);
+
+    private void AjustarMinutos(int passo) => _minutos = Math.Clamp(_minutos + passo, 1, 300);
 
     private async Task RegistrarAsync(int ordem)
     {
@@ -260,35 +399,57 @@ else
             return;
         }
 
-        var indice = _sessao!.ExercicioAtual;
+        var indice = Atual.Indice;
         var item = _itens[indice];
         var agora = DateTimeOffset.UtcNow;
-        _sessao.Series.Add(new SerieFeita(Guid.CreateVersion7(), indice, ordem, item.ExercicioId, _repeticoes, _carga, _rir, agora));
+        _sessao!.Series.Add(new SerieFeita(Guid.CreateVersion7(), indice, ordem, item.ExercicioId, _repeticoes, _carga, _rir, agora));
         var descanso = item.Series[ordem].DescansoSegundos;
+        _sessao.DescansoDesde = agora;
         _sessao.DescansoAte = descanso > 0 ? agora.AddSeconds(descanso) : null;
 
-        if (Feitas(indice).Count >= item.Series.Count)
+        if (Completa(Atual))
         {
-            var proximo = Enumerable.Range(0, _itens.Count).FirstOrDefault(i => i > indice && Feitas(i).Count < _itens[i].Series.Count, -1);
-            if (proximo >= 0)
-            {
-                _sessao.ExercicioAtual = proximo;
-            }
+            AvancarParaAProxima();
         }
 
         await Treinos.GuardarEmAndamentoAsync(_sessao);
         PrepararValores();
     }
 
+    private async Task RegistrarCardioAsync(int cardio)
+    {
+        if (_minutos is < 1 or > 300)
+        {
+            _erroSerie = "Confira os minutos: entre 1 e 300.";
+            return;
+        }
+
+        _sessao!.Cardios.Add(new CardioFeito(Guid.CreateVersion7(), cardio, _cardios[cardio].ExercicioId, _minutos, DateTimeOffset.UtcNow));
+        AvancarParaAProxima();
+        await Treinos.GuardarEmAndamentoAsync(_sessao);
+        PrepararValores();
+    }
+
+    /// <summary>Vai para a próxima etapa ainda não concluída, depois da atual.</summary>
+    private void AvancarParaAProxima()
+    {
+        var atual = _sessao!.ExercicioAtual;
+        var proxima = Enumerable.Range(0, _etapas.Count).FirstOrDefault(i => i > atual && !Completa(_etapas[i]), -1);
+        if (proxima >= 0)
+        {
+            _sessao.ExercicioAtual = proxima;
+        }
+    }
+
     private async Task DesfazerAsync()
     {
-        var ultima = Feitas(_sessao!.ExercicioAtual).LastOrDefault();
+        var ultima = Feitas(Atual.Indice).LastOrDefault();
         if (ultima is null)
         {
             return;
         }
 
-        _sessao.Series.Remove(ultima);
+        _sessao!.Series.Remove(ultima);
         _sessao.DescansoAte = null;
         await Treinos.GuardarEmAndamentoAsync(_sessao);
         PrepararValores();
@@ -297,9 +458,22 @@ else
         _rir = ultima.Rir;
     }
 
+    private async Task DesfazerCardioAsync(int cardio)
+    {
+        if (FeitoDoCardio(cardio) is not { } feito)
+        {
+            return;
+        }
+
+        _sessao!.Cardios.Remove(feito);
+        await Treinos.GuardarEmAndamentoAsync(_sessao);
+        PrepararValores();
+        _minutos = feito.DuracaoMinutos;
+    }
+
     private async Task IrParaAsync(int indice)
     {
-        _sessao!.ExercicioAtual = Math.Clamp(indice, 0, _itens.Count - 1);
+        _sessao!.ExercicioAtual = Math.Clamp(indice, 0, _etapas.Count - 1);
         await Treinos.GuardarEmAndamentoAsync(_sessao);
         PrepararValores();
     }
@@ -335,7 +509,7 @@ else
 
     private async Task PedirFimAsync()
     {
-        if (SeriesFaltando() > 0 && _sessao!.Series.Count > 0)
+        if (Faltando() is not null && (_sessao!.Series.Count > 0 || _sessao.Cardios.Count > 0))
         {
             _confirmandoFim = true;
             return;
@@ -348,7 +522,7 @@ else
     {
         _finalizando = true;
         var sessao = _sessao!;
-        if (sessao.Series.Count == 0)
+        if (sessao.Series.Count == 0 && sessao.Cardios.Count == 0)
         {
             // Nada registrado: não vale como treino feito.
             await Treinos.DescartarEmAndamentoAsync();
@@ -364,7 +538,8 @@ else
             sessao.TreinoId,
             sessao.IniciadaEm,
             fim,
-            [.. sessao.Series.Select(s => new SerieRegistrada(s.Id, s.ExercicioId, s.Repeticoes, s.CargaKg, s.Rir, s.RealizadaEm))]);
+            [.. sessao.Series.Select(s => new SerieRegistrada(s.Id, s.ExercicioId, s.Repeticoes, s.CargaKg, s.Rir, s.RealizadaEm))],
+            [.. sessao.Cardios.Select(c => new CardioRegistrado(c.Id, c.ExercicioId, c.DuracaoMinutos, c.RealizadoEm))]);
 
         // A próxima vez deste treino começa com os números de hoje.
         foreach (var exercicio in sessao.Series.GroupBy(s => s.ExercicioId))
@@ -377,7 +552,10 @@ else
         _resumo = new Resumo(
             sessao.Series.Count,
             sessao.Series.Sum(s => s.Repeticoes * s.CargaKg),
-            Math.Max(1, (int)Math.Round((fim - sessao.IniciadaEm).TotalMinutes)));
+            Math.Max(1, (int)Math.Round((fim - sessao.IniciadaEm).TotalMinutes)),
+            sessao.Cardios.Sum(c => c.DuracaoMinutos));
+        await Treinos.RegistrarNoHistoricoAsync(new SessaoResumo(
+            sessao.Id, sessao.TreinoId, _treino!.Nome, sessao.IniciadaEm, fim, _resumo.Series, _resumo.VolumeKg, _resumo.MinutosDeCardio));
         await Treinos.DescartarEmAndamentoAsync();
         await ChamarJsAsync("volumo.telaAcesa.desligar");
         StateHasChanged();
@@ -411,5 +589,8 @@ else
         await ChamarJsAsync("volumo.telaAcesa.desligar");
     }
 
-    private sealed record Resumo(int Series, decimal VolumeKg, int Minutos);
+    /// <param name="Cardio">Verdadeiro para cardio; <paramref name="Indice"/> aponta para a lista correspondente.</param>
+    private readonly record struct Etapa(bool Cardio, int Indice);
+
+    private sealed record Resumo(int Series, decimal VolumeKg, int Minutos, int MinutosDeCardio);
 }

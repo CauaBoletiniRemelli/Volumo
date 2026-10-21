@@ -1,4 +1,5 @@
-@* Montagem de treino ou modelo. Edita uma cópia local e entrega o plano inteiro: a API substitui tudo. *@
+@* Montagem de treino ou modelo. Edita uma cópia local e entrega o plano inteiro: a API substitui tudo.
+   Duas abas no mesmo plano: musculação e cardio. Cada exercício recolhe para a lista não crescer demais. *@
 @using System.Globalization
 @using Volumo.Shared.Treinos
 
@@ -8,84 +9,185 @@
         <input id="nome-do-plano" maxlength="@NomeMaximo" placeholder="Treino A · Peito e tríceps" @bind="_nome" />
     </div>
 
-    @if (_itens.Count == 0)
+    <div class="abas" role="tablist" aria-label="Partes do treino">
+        <button type="button" role="tab" id="aba-musculacao" class="aba @(_aba == Aba.Musculacao ? "aba-ativa" : null)"
+                aria-selected="@(_aba == Aba.Musculacao ? "true" : "false")" aria-controls="painel-musculacao" @onclick="() => TrocarAba(Aba.Musculacao)">
+            Musculação <span class="numero aba-contagem">@_itens.Count</span>
+        </button>
+        <button type="button" role="tab" id="aba-cardio" class="aba @(_aba == Aba.Cardio ? "aba-ativa" : null)"
+                aria-selected="@(_aba == Aba.Cardio ? "true" : "false")" aria-controls="painel-cardio" @onclick="() => TrocarAba(Aba.Cardio)">
+            Cardio <span class="numero aba-contagem">@_cardios.Count</span>
+        </button>
+    </div>
+
+    @if (_aba == Aba.Musculacao)
     {
-        <p class="painel lista-vazia">Nenhum exercício ainda. Use "Adicionar exercício" para começar.</p>
-    }
+        <div id="painel-musculacao" role="tabpanel" aria-labelledby="aba-musculacao" class="pilha" style="--espaco: 16px">
+            @if (_itens.Count == 0)
+            {
+                <p class="painel lista-vazia">Nenhum exercício ainda. Use "Adicionar exercício" para começar.</p>
+            }
+            else if (_itens.Count > 1)
+            {
+                var todosAbertos = _itens.TrueForAll(i => i.Expandido);
+                <button type="button" class="botao botao-texto alternar-todos" @onclick="() => _itens.ForEach(i => i.Expandido = !todosAbertos)">
+                    @(todosAbertos ? "Recolher todos" : "Expandir todos")
+                </button>
+            }
 
-    <ol class="itens">
-        @for (var i = 0; i < _itens.Count; i++)
-        {
-            var indice = i;
-            var item = _itens[indice];
-            <li class="item painel" @key="item">
-                <div class="item-cabecalho">
-                    <span class="item-ordem numero">@(indice + 1)</span>
-                    <h3 class="item-nome">@item.Nome</h3>
-                    <div class="item-acoes">
-                        <button type="button" class="botao-icone" title="Subir" aria-label="Subir @item.Nome" disabled="@(indice == 0)" @onclick="() => Mover(indice, -1)">↑</button>
-                        <button type="button" class="botao-icone" title="Descer" aria-label="Descer @item.Nome" disabled="@(indice == _itens.Count - 1)" @onclick="() => Mover(indice, 1)">↓</button>
-                        <button type="button" class="botao-icone" title="Remover" aria-label="Remover @item.Nome" @onclick="() => _itens.RemoveAt(indice)">×</button>
-                    </div>
-                </div>
-
-                <div class="series" role="table" aria-label="Séries de @item.Nome">
-                    <div class="serie serie-titulos" role="row">
-                        <span role="columnheader">Série</span>
-                        <span role="columnheader">Tipo</span>
-                        <span role="columnheader">Reps</span>
-                        <span role="columnheader">Descanso (s)</span>
-                        <span role="columnheader">Carga (kg)</span>
-                        <span role="columnheader"><span class="visualmente-oculto">Remover</span></span>
-                    </div>
-                    @for (var s = 0; s < item.Series.Count; s++)
-                    {
-                        var indiceSerie = s;
-                        var serie = item.Series[indiceSerie];
-                        <div class="serie" role="row" @key="serie">
-                            <span class="serie-numero numero" role="cell">@(indiceSerie + 1)</span>
-                            <span role="cell">
-                                <select aria-label="Tipo da série @(indiceSerie + 1)" @bind="serie.Tipo">
-                                    <option value="@TipoDeSerie.Trabalho">Trabalho</option>
-                                    <option value="@TipoDeSerie.Aquecimento">Aquecimento</option>
-                                </select>
-                            </span>
-                            <span class="serie-reps" role="cell">
-                                <input type="number" min="1" max="100" aria-label="Repetições mínimas" @bind="serie.RepeticoesMinimas" />
-                                <span class="secundario">a</span>
-                                <input type="number" min="1" max="100" aria-label="Repetições máximas" @bind="serie.RepeticoesMaximas" />
-                            </span>
-                            <span role="cell">
-                                <input type="number" min="0" max="900" step="15" aria-label="Descanso em segundos" @bind="serie.DescansoSegundos" />
-                            </span>
-                            <span role="cell">
-                                <input type="number" min="0" max="1000" step="0.5" placeholder="livre" aria-label="Carga em kg" @bind="serie.CargaKg" />
-                            </span>
-                            <span role="cell">
-                                <button type="button" class="botao-icone" aria-label="Remover série @(indiceSerie + 1)" disabled="@(item.Series.Count == 1)" @onclick="() => item.Series.RemoveAt(indiceSerie)">×</button>
-                            </span>
+            <ol class="itens">
+                @for (var i = 0; i < _itens.Count; i++)
+                {
+                    var indice = i;
+                    var item = _itens[indice];
+                    <li class="item painel" @key="item">
+                        <div class="item-cabecalho">
+                            <button type="button" class="expandir" aria-expanded="@(item.Expandido ? "true" : "false")" aria-controls="item-corpo-@indice"
+                                    aria-label="@(item.Expandido ? "Recolher" : "Expandir") @item.Nome" @onclick="() => item.Expandido = !item.Expandido">
+                                <span class="seta @(item.Expandido ? "seta-aberta" : null)" aria-hidden="true"></span>
+                                <span class="item-ordem numero">@(indice + 1)</span>
+                                <span class="item-titulo">
+                                    <span class="item-nome">@item.Nome</span>
+                                    @if (!item.Expandido)
+                                    {
+                                        <span class="item-resumo secundario">@Resumo(item)</span>
+                                    }
+                                </span>
+                            </button>
+                            <div class="item-acoes">
+                                <button type="button" class="botao-icone" title="Subir" aria-label="Subir @item.Nome" disabled="@(indice == 0)" @onclick="() => Mover(_itens, indice, -1)">↑</button>
+                                <button type="button" class="botao-icone" title="Descer" aria-label="Descer @item.Nome" disabled="@(indice == _itens.Count - 1)" @onclick="() => Mover(_itens, indice, 1)">↓</button>
+                                <button type="button" class="botao-icone" title="Remover" aria-label="Remover @item.Nome" @onclick="() => _itens.RemoveAt(indice)">×</button>
+                            </div>
                         </div>
-                    }
-                </div>
 
-                <div class="item-rodape">
-                    <button type="button" class="botao botao-texto" disabled="@(item.Series.Count >= MaximoSeries)" @onclick="() => AdicionarSerie(item)">+ Série</button>
-                    <div class="campo observacao">
-                        <label class="rotulo" for="obs-@indice">Observação</label>
-                        <input id="obs-@indice" maxlength="500" placeholder="Cadência, pegada, ajuste do aparelho..." @bind="item.Observacao" />
-                    </div>
-                </div>
-            </li>
-        }
-    </ol>
+                        @if (item.Expandido)
+                        {
+                            <div id="item-corpo-@indice">
+                                <div class="series" role="table" aria-label="Séries de @item.Nome">
+                                    <div class="serie serie-titulos" role="row">
+                                        <span role="columnheader">Série</span>
+                                        <span role="columnheader">Tipo</span>
+                                        <span role="columnheader">Reps</span>
+                                        <span role="columnheader">Descanso (s)</span>
+                                        <span role="columnheader">Carga (kg)</span>
+                                        <span role="columnheader"><span class="visualmente-oculto">Remover</span></span>
+                                    </div>
+                                    @for (var s = 0; s < item.Series.Count; s++)
+                                    {
+                                        var indiceSerie = s;
+                                        var serie = item.Series[indiceSerie];
+                                        <div class="serie" role="row" @key="serie">
+                                            <span class="serie-numero numero" role="cell">@(indiceSerie + 1)</span>
+                                            <span role="cell">
+                                                <select aria-label="Tipo da série @(indiceSerie + 1)" @bind="serie.Tipo">
+                                                    <option value="@TipoDeSerie.Trabalho">Trabalho</option>
+                                                    <option value="@TipoDeSerie.Aquecimento">Aquecimento</option>
+                                                </select>
+                                            </span>
+                                            <span class="serie-reps" role="cell">
+                                                <input type="number" min="1" max="100" aria-label="Repetições mínimas" @bind="serie.RepeticoesMinimas" />
+                                                <span class="secundario">a</span>
+                                                <input type="number" min="1" max="100" aria-label="Repetições máximas" @bind="serie.RepeticoesMaximas" />
+                                            </span>
+                                            <span role="cell">
+                                                <input type="number" min="0" max="900" step="15" aria-label="Descanso em segundos" @bind="serie.DescansoSegundos" />
+                                            </span>
+                                            <span role="cell">
+                                                <input type="number" min="0" max="1000" step="0.5" placeholder="livre" aria-label="Carga em kg" @bind="serie.CargaKg" />
+                                            </span>
+                                            <span role="cell">
+                                                <button type="button" class="botao-icone" aria-label="Remover série @(indiceSerie + 1)" disabled="@(item.Series.Count == 1)" @onclick="() => item.Series.RemoveAt(indiceSerie)">×</button>
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
 
-    @if (_buscando)
-    {
-        <BuscaDeExercicio OnEscolher="AdicionarExercicio" OnFechar="() => _buscando = false" />
+                                <div class="item-rodape">
+                                    <button type="button" class="botao botao-texto" disabled="@(item.Series.Count >= MaximoSeries)" @onclick="() => AdicionarSerie(item)">+ Série</button>
+                                    <div class="campo observacao">
+                                        <label class="rotulo" for="obs-@indice">Observação</label>
+                                        <input id="obs-@indice" maxlength="500" placeholder="Cadência, pegada, ajuste do aparelho..." @bind="item.Observacao" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </li>
+                }
+            </ol>
+
+            @if (_buscando)
+            {
+                <BuscaDeExercicio SemGrupo="GrupoMuscular.Cardio" OnEscolher="AdicionarExercicio" OnFechar="() => _buscando = false" />
+            }
+            else if (_itens.Count < MaximoItens)
+            {
+                <button type="button" class="botao botao-largo" @onclick="() => _buscando = true">+ Adicionar exercício</button>
+            }
+        </div>
     }
-    else if (_itens.Count < MaximoItens)
+    else
     {
-        <button type="button" class="botao botao-largo" @onclick="() => _buscando = true">+ Adicionar exercício</button>
+        <div id="painel-cardio" role="tabpanel" aria-labelledby="aba-cardio" class="pilha" style="--espaco: 16px">
+            @if (_cardios.Count == 0)
+            {
+                <p class="painel lista-vazia">Sem cardio neste treino. Use "Adicionar cardio" para incluir esteira, bicicleta e outros.</p>
+            }
+            else
+            {
+                <fieldset class="momento painel painel-corpo">
+                    <legend class="rotulo">Quando fazer o cardio</legend>
+                    <div class="momento-opcoes">
+                        @foreach (var momento in new[] { MomentoDoCardio.Antes, MomentoDoCardio.Depois, MomentoDoCardio.AlunoEscolhe })
+                        {
+                            <label class="marcar">
+                                <input type="radio" name="momento-do-cardio" checked="@(_momento == momento)" @onchange="() => _momento = momento" />
+                                <span>@Rotulos.De(momento)</span>
+                            </label>
+                        }
+                    </div>
+                    <p class="campo-ajuda">O aluno vê a sua recomendação ao começar o treino e ainda pode trocar a ordem.</p>
+                </fieldset>
+            }
+
+            <ol class="itens">
+                @for (var c = 0; c < _cardios.Count; c++)
+                {
+                    var indice = c;
+                    var cardio = _cardios[indice];
+                    <li class="item painel" @key="cardio">
+                        <div class="item-cabecalho">
+                            <span class="item-ordem numero">@(indice + 1)</span>
+                            <h3 class="item-nome item-titulo">@cardio.Nome</h3>
+                            <div class="item-acoes">
+                                <button type="button" class="botao-icone" title="Subir" aria-label="Subir @cardio.Nome" disabled="@(indice == 0)" @onclick="() => Mover(_cardios, indice, -1)">↑</button>
+                                <button type="button" class="botao-icone" title="Descer" aria-label="Descer @cardio.Nome" disabled="@(indice == _cardios.Count - 1)" @onclick="() => Mover(_cardios, indice, 1)">↓</button>
+                                <button type="button" class="botao-icone" title="Remover" aria-label="Remover @cardio.Nome" @onclick="() => _cardios.RemoveAt(indice)">×</button>
+                            </div>
+                        </div>
+                        <div class="cardio-campos">
+                            <div class="campo cardio-duracao">
+                                <label class="rotulo" for="cardio-min-@indice">Duração (min)</label>
+                                <input id="cardio-min-@indice" type="number" inputmode="numeric" min="1" max="180" @bind="cardio.DuracaoMinutos" />
+                            </div>
+                            <div class="campo">
+                                <label class="rotulo" for="cardio-obs-@indice">Intensidade</label>
+                                <input id="cardio-obs-@indice" maxlength="500" placeholder="Zona 2, 6 km/h, inclinação 5%..." @bind="cardio.Observacao" />
+                            </div>
+                        </div>
+                    </li>
+                }
+            </ol>
+
+            @if (_buscandoCardio)
+            {
+                <BuscaDeExercicio Titulo="Adicionar cardio" SomenteGrupo="GrupoMuscular.Cardio" OnEscolher="AdicionarCardio" OnFechar="() => _buscandoCardio = false" />
+            }
+            else if (_cardios.Count < MaximoCardios)
+            {
+                <button type="button" class="botao botao-largo" @onclick="() => _buscandoCardio = true">+ Adicionar cardio</button>
+            }
+        </div>
     }
 
     @if ((_erroLocal ?? Erro) is { } erro)
@@ -106,10 +208,17 @@
     private const int NomeMaximo = 100;
     private const int MaximoItens = 40;
     private const int MaximoSeries = 20;
+    private const int MaximoCardios = 10;
+
+    private enum Aba { Musculacao, Cardio }
 
     private readonly List<ItemEditavel> _itens = [];
+    private readonly List<CardioEditavel> _cardios = [];
     private string _nome = string.Empty;
+    private MomentoDoCardio _momento = MomentoDoCardio.Depois;
+    private Aba _aba = Aba.Musculacao;
     private bool _buscando;
+    private bool _buscandoCardio;
     private string? _erroLocal;
     private bool _carregou;
 
@@ -118,6 +227,12 @@
 
     [Parameter]
     public IReadOnlyList<ItemDoPlanoSaida>? ItensIniciais { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<CardioDoPlanoSaida>? CardiosIniciais { get; set; }
+
+    [Parameter]
+    public MomentoDoCardio MomentoInicial { get; set; } = MomentoDoCardio.Depois;
 
     [Parameter, EditorRequired]
     public EventCallback<PlanoDeTreinoEntrada> OnSalvar { get; set; }
@@ -145,33 +260,91 @@
 
         _carregou = true;
         _nome = NomeInicial ?? string.Empty;
-        foreach (var item in ItensIniciais?.OrderBy(i => i.Ordem) ?? Enumerable.Empty<ItemDoPlanoSaida>())
+        _momento = MomentoInicial;
+        var itens = ItensIniciais?.OrderBy(i => i.Ordem).ToList() ?? [];
+        foreach (var item in itens)
         {
+            // Plano aberto para editar começa recolhido (só o nome e o resumo de cada exercício).
             _itens.Add(new ItemEditavel(item.ExercicioId, item.NomeDoExercicio)
             {
                 Observacao = item.Observacao,
                 Series = [.. item.Series.Select(SerieEditavel.De)],
+                Expandido = itens.Count == 1,
             });
+        }
+
+        foreach (var cardio in CardiosIniciais?.OrderBy(c => c.Ordem) ?? Enumerable.Empty<CardioDoPlanoSaida>())
+        {
+            _cardios.Add(new CardioEditavel(cardio.ExercicioId, cardio.NomeDoExercicio) { DuracaoMinutos = cardio.DuracaoMinutos, Observacao = cardio.Observacao });
         }
     }
 
+    private void TrocarAba(Aba aba)
+    {
+        _aba = aba;
+        _buscando = false;
+        _buscandoCardio = false;
+    }
+
+    /// <summary>O novo exercício abre e os outros recolhem: a tela não cresce a cada exercício.</summary>
     private void AdicionarExercicio(ExercicioResumo exercicio)
     {
+        _itens.ForEach(i => i.Expandido = false);
         _itens.Add(new ItemEditavel(exercicio.Id, exercicio.Nome)
         {
             Series = [SerieEditavel.Padrao(), SerieEditavel.Padrao(), SerieEditavel.Padrao()],
+            Expandido = true,
         });
         _buscando = false;
+        _erroLocal = null;
+    }
+
+    private void AdicionarCardio(ExercicioResumo exercicio)
+    {
+        _cardios.Add(new CardioEditavel(exercicio.Id, exercicio.Nome));
+        _buscandoCardio = false;
         _erroLocal = null;
     }
 
     private static void AdicionarSerie(ItemEditavel item) =>
         item.Series.Add(item.Series.Count > 0 ? item.Series[^1].Copia() : SerieEditavel.Padrao());
 
-    private void Mover(int indice, int direcao)
+    private static void Mover<T>(List<T> lista, int indice, int direcao)
     {
         var destino = indice + direcao;
-        (_itens[indice], _itens[destino]) = (_itens[destino], _itens[indice]);
+        (lista[indice], lista[destino]) = (lista[destino], lista[indice]);
+    }
+
+    /// <summary>Resumo do exercício recolhido: "3 séries · 8–12 · 20 kg".</summary>
+    private static string Resumo(ItemEditavel item)
+    {
+        if (item.Series.Count == 0)
+        {
+            return "sem séries";
+        }
+
+        var primeira = item.Series[0];
+        var partes = new List<string>
+        {
+            $"{item.Series.Count} {Rotulos.Plural(item.Series.Count, "série", "séries")}",
+            item.Series.TrueForAll(s => s.RepeticoesMinimas == primeira.RepeticoesMinimas && s.RepeticoesMaximas == primeira.RepeticoesMaximas)
+                ? Rotulos.Repeticoes(primeira.RepeticoesMinimas, primeira.RepeticoesMaximas)
+                : "reps variadas",
+        };
+
+        if (item.Series.TrueForAll(s => s.CargaKg == primeira.CargaKg))
+        {
+            if (primeira.CargaKg is { } carga)
+            {
+                partes.Add($"{Rotulos.Kg(carga)} kg");
+            }
+        }
+        else
+        {
+            partes.Add("carga variada");
+        }
+
+        return string.Join(" · ", partes);
     }
 
     private async Task SalvarAsync()
@@ -187,11 +360,16 @@
             [.. _itens.Select(i => new ItemDoPlano(
                 i.ExercicioId,
                 [.. i.Series.Select(s => new SeriePrescrita(s.Tipo, s.RepeticoesMinimas, s.RepeticoesMaximas, s.DescansoSegundos, s.CargaKg))],
-                string.IsNullOrWhiteSpace(i.Observacao) ? null : i.Observacao.Trim()))]);
+                string.IsNullOrWhiteSpace(i.Observacao) ? null : i.Observacao.Trim()))],
+            [.. _cardios.Select(c => new CardioPrescrito(c.ExercicioId, c.DuracaoMinutos, string.IsNullOrWhiteSpace(c.Observacao) ? null : c.Observacao.Trim()))],
+            _momento);
         await OnSalvar.InvokeAsync(plano);
     }
 
-    /// <summary>Mesmos limites do domínio, para avisar antes de enviar. A API valida de novo.</summary>
+    /// <summary>
+    /// Mesmos limites do domínio, para avisar antes de enviar. A API valida de novo. O exercício com
+    /// problema abre (e a aba certa aparece) para a pessoa achar o campo.
+    /// </summary>
     private string? Validar()
     {
         if (string.IsNullOrWhiteSpace(_nome))
@@ -199,40 +377,54 @@
             return "Dê um nome ao treino.";
         }
 
-        if (_itens.Count == 0)
+        if (_itens.Count == 0 && _cardios.Count == 0)
         {
-            return "Adicione pelo menos um exercício.";
+            return "Adicione pelo menos um exercício ou um cardio.";
         }
 
         foreach (var item in _itens)
         {
             for (var s = 0; s < item.Series.Count; s++)
             {
-                var serie = item.Series[s];
-                var onde = string.Create(CultureInfo.InvariantCulture, $"{item.Nome}, série {s + 1}");
-                if (serie.RepeticoesMinimas is < 1 or > 100 || serie.RepeticoesMaximas is < 1 or > 100)
+                if (ProblemaNaSerie(item.Series[s]) is { } problema)
                 {
-                    return $"{onde}: repetições entre 1 e 100.";
-                }
-
-                if (serie.RepeticoesMinimas > serie.RepeticoesMaximas)
-                {
-                    return $"{onde}: o mínimo de repetições não pode passar do máximo.";
-                }
-
-                if (serie.DescansoSegundos is < 0 or > 900)
-                {
-                    return $"{onde}: descanso entre 0 e 900 segundos.";
-                }
-
-                if (serie.CargaKg is < 0 or > 1000)
-                {
-                    return $"{onde}: carga entre 0 e 1000 kg.";
+                    item.Expandido = true;
+                    _aba = Aba.Musculacao;
+                    return string.Create(CultureInfo.InvariantCulture, $"{item.Nome}, série {s + 1}: {problema}");
                 }
             }
         }
 
+        foreach (var cardio in _cardios)
+        {
+            if (cardio.DuracaoMinutos is < 1 or > 180)
+            {
+                _aba = Aba.Cardio;
+                return $"{cardio.Nome}: duração entre 1 e 180 minutos.";
+            }
+        }
+
         return null;
+    }
+
+    private static string? ProblemaNaSerie(SerieEditavel serie)
+    {
+        if (serie.RepeticoesMinimas is < 1 or > 100 || serie.RepeticoesMaximas is < 1 or > 100)
+        {
+            return "repetições entre 1 e 100.";
+        }
+
+        if (serie.RepeticoesMinimas > serie.RepeticoesMaximas)
+        {
+            return "o mínimo de repetições não pode passar do máximo.";
+        }
+
+        if (serie.DescansoSegundos is < 0 or > 900)
+        {
+            return "descanso entre 0 e 900 segundos.";
+        }
+
+        return serie.CargaKg is < 0 or > 1000 ? "carga entre 0 e 1000 kg." : null;
     }
 
     private sealed class ItemEditavel(Guid exercicioId, string nome)
@@ -244,6 +436,19 @@
         public string? Observacao { get; set; }
 
         public List<SerieEditavel> Series { get; init; } = [];
+
+        public bool Expandido { get; set; }
+    }
+
+    private sealed class CardioEditavel(Guid exercicioId, string nome)
+    {
+        public Guid ExercicioId { get; } = exercicioId;
+
+        public string Nome { get; } = nome;
+
+        public int DuracaoMinutos { get; set; } = 20;
+
+        public string? Observacao { get; set; }
     }
 
     private sealed class SerieEditavel

@@ -28,7 +28,27 @@
                 </div>
                 <div class="campo">
                     <label class="rotulo" for="senha">Senha</label>
-                    <InputText id="senha" type="password" autocomplete="current-password" @bind-Value="_login.Senha" />
+                    <div class="campo-senha">
+                        <InputText id="senha" type="@(_mostrarSenha ? "text" : "password")" autocomplete="current-password" autocapitalize="off" spellcheck="false" @bind-Value="_login.Senha" />
+                        <button type="button" class="mostrar-senha" aria-controls="senha" aria-label="@(_mostrarSenha ? "Ocultar senha" : "Mostrar senha")"
+                                title="@(_mostrarSenha ? "Ocultar senha" : "Mostrar senha")" @onclick="() => _mostrarSenha = !_mostrarSenha">
+                            @* Olho aberto: a senha está escondida e o toque mostra. Olho riscado: está à vista e o toque esconde. *@
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                @if (_mostrarSenha)
+                                {
+                                    <path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.1 4.1" />
+                                    <path d="M6.6 6.6C3.7 8.5 2 12 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6" />
+                                    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+                                    <path d="M3 3l18 18" />
+                                }
+                                else
+                                {
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                }
+                            </svg>
+                        </button>
+                    </div>
                     <ValidationMessage For="() => _login.Senha" />
                 </div>
 
@@ -65,6 +85,13 @@
                     <label class="rotulo" for="codigo">Código de 6 dígitos</label>
                     <InputText id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" @bind-Value="_codigo.Valor" />
                     <ValidationMessage For="() => _codigo.Valor" />
+                </div>
+                <div>
+                    <label class="marcar">
+                        <input type="checkbox" @bind="_lembrarAparelho" />
+                        <span>Lembrar este aparelho por 30 dias</span>
+                    </label>
+                    <p class="campo-ajuda">A senha continua sendo pedida. Não marque em computador compartilhado.</p>
                 </div>
                 @if (_erro is not null)
                 {
@@ -114,6 +141,8 @@
     private string? _tokenTurnstile;
     private bool _enviando;
     private bool _emailNaoConfirmado;
+    private bool _mostrarSenha;
+    private bool _lembrarAparelho;
 
     [SupplyParameterFromQuery] public string? Voltar { get; set; }
 
@@ -140,7 +169,7 @@
     }
 
     private Task EnviarCodigoAsync() => EnviarAsync(async () =>
-        Finalizar(await Api.PostAsync<RespostaDeLogin>("auth/login/2fa", new SegundaEtapaDoLogin(_desafio!, _codigo.Valor))));
+        Finalizar(await Api.PostAsync<RespostaDeLogin>("auth/login/2fa", new SegundaEtapaDoLogin(_desafio!, _codigo.Valor, _lembrarAparelho))));
 
     private Task EnviarRecuperacaoAsync() => EnviarAsync(async () =>
         Finalizar(await Api.PostAsync<RespostaDeLogin>("auth/login/recuperacao", new LoginComCodigoDeRecuperacao(_desafio!, _codigo.Valor))));
