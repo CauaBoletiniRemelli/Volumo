@@ -5,7 +5,9 @@
     <nav class="app-nav" aria-label="Principal">
         <div class="app-nav-marca"><Marca /></div>
         <AuthorizeView Roles="Personal">
+            <NavLink class="app-link" href="painel">Painel</NavLink>
             <NavLink class="app-link" href="alunos">Alunos</NavLink>
+            <NavLink class="app-link" href="modelos">Modelos</NavLink>
         </AuthorizeView>
         <AuthorizeView Roles="Aluno">
             <NavLink class="app-link" href="treinos">Treinos</NavLink>

@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Volumo.Api.Auth;
+using Volumo.Api.Painel;
 using Volumo.Api.Sessoes;
 using Volumo.Api.Treinos;
 using Volumo.Domain.Treinos;
 using Volumo.Infrastructure.Persistencia;
 using Volumo.Shared.Alunos;
+using Volumo.Shared.Painel;
 using Volumo.Shared.Sessoes;
 using Volumo.Shared.Treinos;
 
@@ -93,6 +95,23 @@ public sealed class AlunosController(VolumoDbContext db, PlanMapper mapper, Time
         }
 
         vinculo.Encerrar(clock.GetUtcNow());
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>Como o painel mede a estagnação deste aluno: dias ou sessões sem subir peso.</summary>
+    [HttpPut("{alunoId:guid}/estagnacao")]
+    public async Task<IActionResult> ConfigureStagnation(Guid alunoId, ConfiguracaoDeEstagnacao request, CancellationToken ct)
+    {
+        var personalId = User.UsuarioId()!.Value;
+        var vinculo = await db.VinculosPersonalAluno.SingleOrDefaultAsync(
+            v => v.PersonalId == personalId && v.AlunoId == alunoId && v.EncerradoEm == null, ct);
+        if (vinculo is null)
+        {
+            return NotFound();
+        }
+
+        vinculo.ConfigurarEstagnacao(PainelQueries.ToDomain(request.Criterio), request.Limite);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

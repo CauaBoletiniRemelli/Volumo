@@ -1,0 +1,67 @@
+@page "/alunos/{AlunoId:guid}/treinos/novo"
+@page "/treinos/{Id:guid}/editar"
+@attribute [Authorize(Roles = "Personal")]
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+@inject NavigationManager Navegacao
+
+<PageTitle>@(Id is null ? "Novo treino" : "Editar treino") · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    @if (_alunoId is { } alunoId)
+    {
+        <p class="rotulo"><a href="alunos/@alunoId">Voltar ao aluno</a></p>
+    }
+    <h1>@(Id is null ? "Novo treino" : "Editar treino")</h1>
+</header>
+
+<ExigeDoisFatores>
+    @if (Id is not null && _treino is null)
+    {
+        <p class="secundario">@(_erro ?? "Carregando.")</p>
+    }
+    else
+    {
+        <ConstrutorDeTreino NomeInicial="@_treino?.Nome" ItensIniciais="@_treino?.Itens" OnSalvar="SalvarAsync"
+                            Salvando="_salvando" Erro="@_erro" TextoDoBotao="Salvar treino" Cancelar="@($"alunos/{_alunoId}")" />
+    }
+</ExigeDoisFatores>
+
+@code {
+    private TreinoDetalhe? _treino;
+    private Guid? _alunoId;
+    private string? _erro;
+    private bool _salvando;
+
+    [Parameter]
+    public Guid? AlunoId { get; set; }
+
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _alunoId = AlunoId;
+        if (Id is { } id)
+        {
+            var resultado = await Api.GetAsync<TreinoDetalhe>($"treinos/{id}");
+            _treino = resultado.Valor;
+            _erro = resultado.Erro;
+            _alunoId = _treino?.AlunoId;
+        }
+    }
+
+    private async Task SalvarAsync(PlanoDeTreinoEntrada plano)
+    {
+        _salvando = true;
+        var resultado = Id is { } id
+            ? (await Api.PutAsync($"treinos/{id}", plano)).Erro
+            : (await Api.PostAsync<RecursoCriado>($"alunos/{AlunoId}/treinos", plano)).Erro;
+        _salvando = false;
+        _erro = resultado;
+        if (resultado is null)
+        {
+            Navegacao.NavigateTo($"alunos/{_alunoId}");
+        }
+    }
+}

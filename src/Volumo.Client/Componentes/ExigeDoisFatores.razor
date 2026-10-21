@@ -1,0 +1,19 @@
+@* Áreas de personal: a API recusa (403) sem 2FA, então a tela já leva para a configuração. *@
+@inject SessaoDoUsuario Sessao
+
+@if (Sessao.ComDoisFatores)
+{
+    @ChildContent
+}
+else
+{
+    <div class="aviso pilha">
+        <p>Antes de ver seus alunos e treinos, ative a verificação em duas etapas. Leva um minuto.</p>
+        <a class="botao botao-principal" href="conta/2fa">Ativar agora</a>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public RenderFragment ChildContent { get; set; } = default!;
+}

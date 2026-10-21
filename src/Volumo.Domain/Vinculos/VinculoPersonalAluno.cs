@@ -1,4 +1,5 @@
 using Volumo.Domain.Comum;
+using Volumo.Domain.Sessoes;
 
 namespace Volumo.Domain.Vinculos;
 
@@ -29,6 +30,23 @@ public sealed class VinculoPersonalAluno : Entidade
     public DateTimeOffset? EncerradoEm { get; private set; }
 
     public bool Ativo => EncerradoEm is null;
+
+    /// <summary>Como este personal mede a estagnação deste aluno (padrão: 15 dias sem subir peso).</summary>
+    public CriterioDeEstagnacao CriterioDeEstagnacao { get; private set; } = AnaliseDeEstagnacao.CriterioPadrao;
+
+    /// <summary>Dias ou sessões, conforme <see cref="CriterioDeEstagnacao"/>.</summary>
+    public int LimiteDeEstagnacao { get; private set; } = AnaliseDeEstagnacao.LimitePadrao;
+
+    public void ConfigurarEstagnacao(CriterioDeEstagnacao criterio, int limite)
+    {
+        if (!Ativo)
+        {
+            throw new RegraDeNegocioException("Este vínculo já foi encerrado.");
+        }
+
+        LimiteDeEstagnacao = AnaliseDeEstagnacao.ValidarLimite(criterio, limite);
+        CriterioDeEstagnacao = criterio;
+    }
 
     public static VinculoPersonalAluno Criar(Guid id, Guid personalId, Guid alunoId, DateTimeOffset agora) =>
         new(id, personalId, alunoId, agora);

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Volumo.Domain.Sessoes;
 using Volumo.Domain.Usuarios;
 using Volumo.Domain.Vinculos;
 
@@ -23,6 +24,10 @@ internal sealed class VinculoPersonalAlunoConfiguracao : IEntityTypeConfiguratio
             .HasDatabaseName(IndiceAlunoComVinculoAtivo);
 
         builder.HasIndex(v => new { v.PersonalId, v.EncerradoEm });
+
+        // Vínculos que já existiam ganham o padrão: 15 dias sem subir peso.
+        builder.Property(v => v.CriterioDeEstagnacao).HasDefaultValue(AnaliseDeEstagnacao.CriterioPadrao);
+        builder.Property(v => v.LimiteDeEstagnacao).HasDefaultValue(AnaliseDeEstagnacao.LimitePadrao);
     }
 }
 

@@ -247,9 +247,22 @@ a:hover { text-decoration-color: var(--acao); }
     border-radius: var(--raio);
     font-size: 1.1rem;
     letter-spacing: .06em;
+    text-transform: uppercase;
     word-break: break-word;
     user-select: all;
 }
+
+/* Fundo branco de propósito: leitores de QR leem melhor módulos escuros sobre claro. */
+.qr-code {
+    width: 220px;
+    margin: 14px 0 6px;
+    padding: 8px;
+    border-radius: var(--raio);
+    background: #FFFFFF;
+    line-height: 0;
+}
+
+.qr-code svg { width: 100%; height: auto; }
 
 .codigos {
     display: grid;
@@ -260,6 +273,86 @@ a:hover { text-decoration-color: var(--acao); }
     border: 1px solid var(--linha);
     border-radius: var(--raio);
     background: var(--campo);
+}
+
+.botao-grande { min-height: 60px; font-size: 1.05rem; }
+
+.link-largo { flex: 1; min-width: 0; padding: 6px 0; text-decoration: none; }
+
+.em-andamento {
+    display: grid;
+    gap: 6px;
+    padding: 16px 18px;
+    border: 1px solid var(--acao);
+    border-radius: var(--raio);
+    background: var(--superficie);
+    text-decoration: none;
+}
+
+.sincronizacao { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.sincronizacao > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+
+.itens-do-treino { display: grid; gap: 12px; margin-inline: 0; margin-bottom: 0; padding: 0; list-style: none; }
+.prescricao { font-size: 1.05rem; }
+
+/* Painel: números do topo. O limão marca só o número que pede ação. */
+.indicadores {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0 0 24px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--superficie);
+}
+
+.indicadores > div { display: grid; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--linha); }
+.indicadores > div:nth-child(odd) { border-right: 1px solid var(--linha); }
+.indicadores > div:nth-last-child(-n+2) { border-bottom: 0; }
+.indicadores dd { margin: 0; font-size: 2rem; line-height: 1; }
+.indicador-alerta, .texto-alerta { color: var(--acao); }
+
+@media (min-width: 640px) {
+    .indicadores { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .indicadores > div { border-bottom: 0; border-right: 1px solid var(--linha); }
+    .indicadores > div:last-child { border-right: 0; }
+}
+
+.linha-abaixo { display: block; font-size: .9rem; }
+
+/* Celular: nome em cima, detalhe embaixo, em vez de espremer os dois na mesma linha. */
+@media (max-width: 639px) {
+    .lista-empilha > li { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .lista-empilha .estagnacao-detalhe { text-align: left; }
+}
+
+.estagnados { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.estagnados > li { display: grid; gap: 2px; }
+
+/* Escolha entre duas opções (segmentado). */
+.escolha { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--linha-forte); border-radius: var(--raio); }
+.escolha-opcao {
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    color: var(--texto-2);
+    font: 600 .9rem/1 var(--fonte-texto);
+    cursor: pointer;
+}
+.escolha-opcao + .escolha-opcao { border-left: 1px solid var(--linha-forte); }
+.escolha-ativa { color: var(--sobre-acao); background: var(--acao); }
+.estagnacao-detalhe { text-align: right; }
+
+.linha-de-botoes.alinhada { align-items: center; flex-wrap: nowrap; gap: 4px 12px; }
+.texto-erro { color: var(--erro); }
+.texto-erro:hover { color: var(--erro); }
+
+.visualmente-oculto {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 .convite-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

@@ -1,0 +1,274 @@
+@* Montagem de treino ou modelo. Edita uma cópia local e entrega o plano inteiro: a API substitui tudo. *@
+@using System.Globalization
+@using Volumo.Shared.Treinos
+
+<div class="construtor pilha" style="--espaco: 24px">
+    <div class="campo nome-do-plano">
+        <label class="rotulo" for="nome-do-plano">Nome</label>
+        <input id="nome-do-plano" maxlength="@NomeMaximo" placeholder="Treino A · Peito e tríceps" @bind="_nome" />
+    </div>
+
+    @if (_itens.Count == 0)
+    {
+        <p class="painel lista-vazia">Nenhum exercício ainda. Use "Adicionar exercício" para começar.</p>
+    }
+
+    <ol class="itens">
+        @for (var i = 0; i < _itens.Count; i++)
+        {
+            var indice = i;
+            var item = _itens[indice];
+            <li class="item painel" @key="item">
+                <div class="item-cabecalho">
+                    <span class="item-ordem numero">@(indice + 1)</span>
+                    <h3 class="item-nome">@item.Nome</h3>
+                    <div class="item-acoes">
+                        <button type="button" class="botao-icone" title="Subir" aria-label="Subir @item.Nome" disabled="@(indice == 0)" @onclick="() => Mover(indice, -1)">↑</button>
+                        <button type="button" class="botao-icone" title="Descer" aria-label="Descer @item.Nome" disabled="@(indice == _itens.Count - 1)" @onclick="() => Mover(indice, 1)">↓</button>
+                        <button type="button" class="botao-icone" title="Remover" aria-label="Remover @item.Nome" @onclick="() => _itens.RemoveAt(indice)">×</button>
+                    </div>
+                </div>
+
+                <div class="series" role="table" aria-label="Séries de @item.Nome">
+                    <div class="serie serie-titulos" role="row">
+                        <span role="columnheader">Série</span>
+                        <span role="columnheader">Tipo</span>
+                        <span role="columnheader">Reps</span>
+                        <span role="columnheader">Descanso (s)</span>
+                        <span role="columnheader">Carga (kg)</span>
+                        <span role="columnheader"><span class="visualmente-oculto">Remover</span></span>
+                    </div>
+                    @for (var s = 0; s < item.Series.Count; s++)
+                    {
+                        var indiceSerie = s;
+                        var serie = item.Series[indiceSerie];
+                        <div class="serie" role="row" @key="serie">
+                            <span class="serie-numero numero" role="cell">@(indiceSerie + 1)</span>
+                            <span role="cell">
+                                <select aria-label="Tipo da série @(indiceSerie + 1)" @bind="serie.Tipo">
+                                    <option value="@TipoDeSerie.Trabalho">Trabalho</option>
+                                    <option value="@TipoDeSerie.Aquecimento">Aquecimento</option>
+                                </select>
+                            </span>
+                            <span class="serie-reps" role="cell">
+                                <input type="number" min="1" max="100" aria-label="Repetições mínimas" @bind="serie.RepeticoesMinimas" />
+                                <span class="secundario">a</span>
+                                <input type="number" min="1" max="100" aria-label="Repetições máximas" @bind="serie.RepeticoesMaximas" />
+                            </span>
+                            <span role="cell">
+                                <input type="number" min="0" max="900" step="15" aria-label="Descanso em segundos" @bind="serie.DescansoSegundos" />
+                            </span>
+                            <span role="cell">
+                                <input type="number" min="0" max="1000" step="0.5" placeholder="livre" aria-label="Carga em kg" @bind="serie.CargaKg" />
+                            </span>
+                            <span role="cell">
+                                <button type="button" class="botao-icone" aria-label="Remover série @(indiceSerie + 1)" disabled="@(item.Series.Count == 1)" @onclick="() => item.Series.RemoveAt(indiceSerie)">×</button>
+                            </span>
+                        </div>
+                    }
+                </div>
+
+                <div class="item-rodape">
+                    <button type="button" class="botao botao-texto" disabled="@(item.Series.Count >= MaximoSeries)" @onclick="() => AdicionarSerie(item)">+ Série</button>
+                    <div class="campo observacao">
+                        <label class="rotulo" for="obs-@indice">Observação</label>
+                        <input id="obs-@indice" maxlength="500" placeholder="Cadência, pegada, ajuste do aparelho..." @bind="item.Observacao" />
+                    </div>
+                </div>
+            </li>
+        }
+    </ol>
+
+    @if (_buscando)
+    {
+        <BuscaDeExercicio OnEscolher="AdicionarExercicio" OnFechar="() => _buscando = false" />
+    }
+    else if (_itens.Count < MaximoItens)
+    {
+        <button type="button" class="botao botao-largo" @onclick="() => _buscando = true">+ Adicionar exercício</button>
+    }
+
+    @if ((_erroLocal ?? Erro) is { } erro)
+    {
+        <p class="aviso aviso-erro" role="alert">@erro</p>
+    }
+
+    <div class="linha-de-botoes">
+        <button type="button" class="botao botao-principal" disabled="@Salvando" @onclick="SalvarAsync">@TextoDoBotao</button>
+        @if (Cancelar is not null)
+        {
+            <a class="botao" href="@Cancelar">Cancelar</a>
+        }
+    </div>
+</div>
+
+@code {
+    private const int NomeMaximo = 100;
+    private const int MaximoItens = 40;
+    private const int MaximoSeries = 20;
+
+    private readonly List<ItemEditavel> _itens = [];
+    private string _nome = string.Empty;
+    private bool _buscando;
+    private string? _erroLocal;
+    private bool _carregou;
+
+    [Parameter]
+    public string? NomeInicial { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ItemDoPlanoSaida>? ItensIniciais { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<PlanoDeTreinoEntrada> OnSalvar { get; set; }
+
+    [Parameter]
+    public bool Salvando { get; set; }
+
+    /// <summary>Erro vindo da API (a página repassa a mensagem do ProblemDetails).</summary>
+    [Parameter]
+    public string? Erro { get; set; }
+
+    [Parameter]
+    public string TextoDoBotao { get; set; } = "Salvar";
+
+    [Parameter]
+    public string? Cancelar { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // Copia o plano só na primeira vez: depois a edição é local até salvar.
+        if (_carregou)
+        {
+            return;
+        }
+
+        _carregou = true;
+        _nome = NomeInicial ?? string.Empty;
+        foreach (var item in ItensIniciais?.OrderBy(i => i.Ordem) ?? Enumerable.Empty<ItemDoPlanoSaida>())
+        {
+            _itens.Add(new ItemEditavel(item.ExercicioId, item.NomeDoExercicio)
+            {
+                Observacao = item.Observacao,
+                Series = [.. item.Series.Select(SerieEditavel.De)],
+            });
+        }
+    }
+
+    private void AdicionarExercicio(ExercicioResumo exercicio)
+    {
+        _itens.Add(new ItemEditavel(exercicio.Id, exercicio.Nome)
+        {
+            Series = [SerieEditavel.Padrao(), SerieEditavel.Padrao(), SerieEditavel.Padrao()],
+        });
+        _buscando = false;
+        _erroLocal = null;
+    }
+
+    private static void AdicionarSerie(ItemEditavel item) =>
+        item.Series.Add(item.Series.Count > 0 ? item.Series[^1].Copia() : SerieEditavel.Padrao());
+
+    private void Mover(int indice, int direcao)
+    {
+        var destino = indice + direcao;
+        (_itens[indice], _itens[destino]) = (_itens[destino], _itens[indice]);
+    }
+
+    private async Task SalvarAsync()
+    {
+        _erroLocal = Validar();
+        if (_erroLocal is not null)
+        {
+            return;
+        }
+
+        var plano = new PlanoDeTreinoEntrada(
+            _nome.Trim(),
+            [.. _itens.Select(i => new ItemDoPlano(
+                i.ExercicioId,
+                [.. i.Series.Select(s => new SeriePrescrita(s.Tipo, s.RepeticoesMinimas, s.RepeticoesMaximas, s.DescansoSegundos, s.CargaKg))],
+                string.IsNullOrWhiteSpace(i.Observacao) ? null : i.Observacao.Trim()))]);
+        await OnSalvar.InvokeAsync(plano);
+    }
+
+    /// <summary>Mesmos limites do domínio, para avisar antes de enviar. A API valida de novo.</summary>
+    private string? Validar()
+    {
+        if (string.IsNullOrWhiteSpace(_nome))
+        {
+            return "Dê um nome ao treino.";
+        }
+
+        if (_itens.Count == 0)
+        {
+            return "Adicione pelo menos um exercício.";
+        }
+
+        foreach (var item in _itens)
+        {
+            for (var s = 0; s < item.Series.Count; s++)
+            {
+                var serie = item.Series[s];
+                var onde = string.Create(CultureInfo.InvariantCulture, $"{item.Nome}, série {s + 1}");
+                if (serie.RepeticoesMinimas is < 1 or > 100 || serie.RepeticoesMaximas is < 1 or > 100)
+                {
+                    return $"{onde}: repetições entre 1 e 100.";
+                }
+
+                if (serie.RepeticoesMinimas > serie.RepeticoesMaximas)
+                {
+                    return $"{onde}: o mínimo de repetições não pode passar do máximo.";
+                }
+
+                if (serie.DescansoSegundos is < 0 or > 900)
+                {
+                    return $"{onde}: descanso entre 0 e 900 segundos.";
+                }
+
+                if (serie.CargaKg is < 0 or > 1000)
+                {
+                    return $"{onde}: carga entre 0 e 1000 kg.";
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private sealed class ItemEditavel(Guid exercicioId, string nome)
+    {
+        public Guid ExercicioId { get; } = exercicioId;
+
+        public string Nome { get; } = nome;
+
+        public string? Observacao { get; set; }
+
+        public List<SerieEditavel> Series { get; init; } = [];
+    }
+
+    private sealed class SerieEditavel
+    {
+        public TipoDeSerie Tipo { get; set; } = TipoDeSerie.Trabalho;
+
+        public int RepeticoesMinimas { get; set; } = 8;
+
+        public int RepeticoesMaximas { get; set; } = 12;
+
+        public int DescansoSegundos { get; set; } = 90;
+
+        public decimal? CargaKg { get; set; }
+
+        public static SerieEditavel Padrao() => new();
+
+        public static SerieEditavel De(SeriePrescrita s) => new()
+        {
+            Tipo = s.Tipo,
+            RepeticoesMinimas = s.RepeticoesMinimas,
+            RepeticoesMaximas = s.RepeticoesMaximas,
+            DescansoSegundos = s.DescansoSegundos,
+            CargaKg = s.CargaKg is { } carga ? Rotulos.SemZeros(carga) : null,
+        };
+
+        public SerieEditavel Copia() => (SerieEditavel)MemberwiseClone();
+    }
+}

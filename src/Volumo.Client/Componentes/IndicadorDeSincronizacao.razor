@@ -1,0 +1,44 @@
+@* Situação do envio das sessões: só aparece quando há algo a dizer. *@
+@implements IDisposable
+@inject SincronizacaoDeSessoes Sincronizacao
+@inject SessaoDoUsuario Sessao
+
+@if (Sincronizacao.Pendentes > 0 || Sessao.Offline || Sincronizacao.SemConexao)
+{
+    <div class="aviso sincronizacao" role="status">
+        <span>
+            @if (Sessao.Offline || Sincronizacao.SemConexao)
+            {
+                <span class="rotulo">Sem conexão</span>
+            }
+            @if (Sincronizacao.Pendentes > 0)
+            {
+                <span><span class="numero">@Sincronizacao.Pendentes</span> @(Sincronizacao.Pendentes == 1 ? "treino aguardando envio" : "treinos aguardando envio")</span>
+            }
+            else
+            {
+                <span>Os treinos feitos agora ficam guardados no aparelho.</span>
+            }
+        </span>
+        @if (Sincronizacao.Pendentes > 0)
+        {
+            <button class="botao botao-texto" @onclick="Sincronizacao.EnviarAsync">Enviar agora</button>
+        }
+    </div>
+}
+
+@foreach (var recusada in Sincronizacao.Recusadas)
+{
+    <div class="aviso aviso-erro sincronizacao" role="alert">
+        <span>O treino de <span class="numero">@Rotulos.Data(recusada.IniciadaEm)</span> não foi aceito: @recusada.Motivo</span>
+        <button class="botao botao-texto" @onclick="Sincronizacao.DispensarRecusadasAsync">Entendi</button>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => Sincronizacao.Mudou += Redesenhar;
+
+    private void Redesenhar() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Sincronizacao.Mudou -= Redesenhar;
+}

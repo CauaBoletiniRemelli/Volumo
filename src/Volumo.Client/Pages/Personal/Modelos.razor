@@ -1,0 +1,76 @@
+@page "/modelos"
+@attribute [Authorize(Roles = "Personal")]
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+<PageTitle>Modelos · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <h1>Modelos</h1>
+    <a class="botao botao-principal" href="modelos/novo">Novo modelo</a>
+</header>
+
+<ExigeDoisFatores>
+    <section class="painel">
+        @if (_modelos is null)
+        {
+            <p class="lista-vazia">@(_erro ?? "Carregando.")</p>
+        }
+        else if (_modelos.Count == 0)
+        {
+            <p class="lista-vazia">Monte um treino uma vez e mande para quantos alunos quiser. Comece pelo primeiro modelo.</p>
+        }
+        else
+        {
+            <ul class="lista">
+                @foreach (var modelo in _modelos)
+                {
+                    <li>
+                        <a class="treino-nome" href="modelos/@modelo.Id">@modelo.Nome</a>
+                        <span class="linha-de-botoes alinhada">
+                            <span class="secundario"><span class="numero">@modelo.QuantidadeDeExercicios</span> @Rotulos.Plural(modelo.QuantidadeDeExercicios, "exercício", "exercícios")</span>
+                            @if (_confirmando == modelo.Id)
+                            {
+                                <button class="botao botao-texto texto-erro" @onclick="() => ArquivarAsync(modelo.Id)">Confirmar</button>
+                                <button class="botao botao-texto" @onclick="() => _confirmando = null">Manter</button>
+                            }
+                            else
+                            {
+                                <button class="botao botao-texto" @onclick="() => _confirmando = modelo.Id">Arquivar</button>
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+    @if (_erroAcao is not null)
+    {
+        <p class="aviso aviso-erro" role="alert" style="margin-top: 16px">@_erroAcao</p>
+    }
+    <p class="campo-ajuda" style="margin-top: 16px">Arquivar tira o modelo da lista. Treinos que já foram para os alunos não mudam.</p>
+</ExigeDoisFatores>
+
+@code {
+    private List<TemplateResumo>? _modelos;
+    private string? _erro;
+    private string? _erroAcao;
+    private Guid? _confirmando;
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        var resultado = await Api.GetAsync<List<TemplateResumo>>("templates");
+        _modelos = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+
+    private async Task ArquivarAsync(Guid id)
+    {
+        _confirmando = null;
+        var resultado = await Api.PostAsync($"templates/{id}/inativar");
+        _erroAcao = resultado.Erro;
+        await CarregarAsync();
+    }
+}

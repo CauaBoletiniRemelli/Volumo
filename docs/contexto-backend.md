@@ -1,6 +1,6 @@
 # Contexto do backend: onde paramos
 
-Última atualização: 16/10/2026 · Branch: `Criação-Back-End` · Fases 0–2 no working tree (o usuário commita).
+Última atualização: 21/10/2026 · **Beta publicado em 21/10/2026:** API em https://apivolumo.runasp.net e app em https://appvolumo.runasp.net (MonsterASP, variáveis de ambiente no painel, e-mail pelo Brevo, banco com o script idempotente), testado de ponta a ponta pelo usuário · Branch: `Criação-Back-End` · No working tree, sem commit (o usuário commita): front etapa 2, QR code do 2FA e fase 5.3 (painel do personal, com a migration `ConfiguracaoDeEstagnacao`, já aplicada no LocalDB). Testes: 284 passando.
 
 Use este arquivo junto com o `CLAUDE.md` (planejamento do produto) para retomar o trabalho.
 
@@ -30,7 +30,7 @@ Use este arquivo junto com o `CLAUDE.md` (planejamento do produto) para retomar 
 | 2. Domínio + persistência | Entidades, EF Core, migrations, LocalDB, IDs GUID v7 gerados no cliente (sincronização offline) | ✅ Feito (16/10) |
 | 3. Autenticação | **3.1** Identity, cadastro de personal, confirmação de e-mail, bloqueio após falhas, JWT de 15 min, refresh token rotativo, logout, login obrigatório por padrão · **3.2** 2FA obrigatório para personal, recuperação de senha, Turnstile · **3.3** convite e cadastro de aluno, reativação de conta, suspensão | ✅ Feito (16/10) |
 | 4. Autorização contra IDOR | Roles e policies (já feitas na fase 3), autorização por recurso, filtros globais do EF por dono, 404 para recurso alheio | ✅ Feito (16/10) |
-| 5. Funcionalidades do MVP | **5.1** catálogo de exercícios, templates, treinos, atribuição ao aluno, alunos e encerramento de vínculo · **5.2** registro de sessão com sincronização offline e idempotência · **5.3** painel do personal (último treino, sumido há mais de 5 dias, estagnado) | 5.1 ✅ · 5.2 ✅ (16/10) · 5.3 ⏭️ **Próxima** |
+| 5. Funcionalidades do MVP | **5.1** catálogo de exercícios, templates, treinos, atribuição ao aluno, alunos e encerramento de vínculo · **5.2** registro de sessão com sincronização offline e idempotência · **5.3** painel do personal (último treino, sumido há mais de 5 dias, estagnado) | 5.1 ✅ · 5.2 ✅ (16/10) · 5.3 ✅ (20/10) |
 | 6. Cobrança + LGPD | Webhook do gateway com validação de assinatura e idempotência, consentimento, exportação e exclusão de conta | Pendente |
 | 7. CI/CD | GitHub Actions (build, testes, `dotnet list package --vulnerable`, CodeQL, Dependabot, OWASP ZAP) e deploy no MonsterASP.NET | Pendente |
 
@@ -214,6 +214,19 @@ Volumo.slnx
   - Conflito de gravação (dois aparelhos mandando a mesma sessão ao mesmo tempo): limpa e tenta de novo uma vez pelo caminho idempotente.
 - Testes: `Sessoes/SincronizacaoDeSessoesTests` (reenvio não duplica, sessão chegando aos poucos, lote misto, dados de outra pessoa, matriz 401/403/404, lote acima de 20 → 400).
 
+### Painel do personal (fase 5.3, 20/10/2026)
+
+| Rota | Acesso | O que faz |
+|---|---|---|
+| `GET /painel` | `Personal` | Alunos com vínculo ativo: situação (`EmDia`, `Sumido` = mais de 5 dias sem treinar, `NuncaTreinou`), dias sem treinar, último treino, treinos nos últimos 7 dias, critério de estagnação do aluno e exercícios estagnados |
+| `PUT /alunos/{id}/estagnacao` | `Personal` | `{criterio: Tempo/Sessoes, limite}` → 204; fora dos limites → 400; aluno alheio ou ex-aluno → 404 |
+
+- **Estagnação configurável por aluno** (decisão do usuário): o personal escolhe **dias** (7–90) ou **sessões** (2–10) sem subir peso. **Padrão: 15 dias.** Guardado no vínculo (`VinculoPersonalAluno.CriterioDeEstagnacao`/`LimiteDeEstagnacao`, migration `ConfiguracaoDeEstagnacao`), porque é a visão daquele personal sobre aquele aluno.
+- **Regra** (`Domain/Sessoes/AnaliseDeEstagnacao`): "subir peso" = sessão cuja maior carga supera a de todas as anteriores do exercício. Por tempo: último aumento há N dias ou mais, com o exercício feito nos últimos N dias e ao menos uma sessão depois do aumento. Por sessões: N sessões ou mais desde o último aumento. Peso corporal (carga 0) e exercício com uma sessão só não entram.
+- `Api/Painel/PainelQueries`: últimas sessões sem limite de data; estagnação sobre as sessões finalizadas dos últimos 120 dias (maior carga por sessão e exercício agregada no banco).
+- Front: `Pages/Personal/Painel.razor` (indicadores, "Precisam de atenção", "Estagnados", "Todos os alunos") vira a página inicial do personal; `Pages/Personal/Aluno.razor` ganhou "Alerta de estagnação" (Dias/Sessões, limite, "Voltar ao padrão").
+- Testes: `Domain.Tests/Sessoes/AnaliseDeEstagnacaoTests`, casos novos em `VinculoPersonalAlunoTests` e `Api.Tests/Painel/PainelTests` (situações, troca de critério, visibilidade e matriz 401/403/404/400). Verificado no navegador (computador e celular) em 20/10.
+
 ### Exercícios, templates e treinos (fase 5.1)
 
 | Rota | Acesso | O que faz |
@@ -274,7 +287,7 @@ Decisões e detalhes:
 - Migrations (rodar na raiz):
   - nova: `dotnet ef migrations add <Nome> -p src/Volumo.Infrastructure -s src/Volumo.Infrastructure -o Persistencia/Migrations`
   - aplicar no LocalDB: `dotnet ef database update -p src/Volumo.Infrastructure -s src/Volumo.Infrastructure`
-  - script para produção: `dotnet ef migrations script --idempotent -p src/Volumo.Infrastructure -s src/Volumo.Infrastructure -o migracao.sql`
+  - script para produção: `dotnet ef migrations script --idempotent -p src/Volumo.Infrastructure -s src/Volumo.Infrastructure -o artifacts/migracao.sql` (pasta ignorada pelo Git). Acrescentar `SET QUOTED_IDENTIFIER ON` + `GO` no topo: o sqlcmd vem com essa opção desligada e os índices filtrados falham sem ela (SSMS já liga). Validado em 21/10/2026: roda duas vezes num banco vazio sem erro (7 migrations, 42 exercícios)
 - Logs do EF em `Warning` (o SQL das consultas não vai para o log em produção).
 
 Referências: Client → Shared · Api → Shared, Domain, Infrastructure · Infrastructure → Domain · Domain → nenhuma.
@@ -397,20 +410,22 @@ ASP.NET Core / EF Core / Identity 10.0.13 · Serilog.AspNetCore 10.0.0 · xunit.
 - `Cors__AllowedOrigins__0=https://app.volumo.com.br` (ou o domínio definitivo).
 - `AllowedHosts`: o domínio da API (hoje está `*`).
 - Connection string e chave do JWT: confirmar se o painel aceita variáveis de ambiente.
-- Variáveis obrigatórias da autenticação: `Jwt__Issuer`, `Jwt__Audience`, `Jwt__SigningKey` (gerar uma chave nova, nunca reaproveitar a de dev), `Front__BaseUrl`, `Email__Provider` (provedor real; `File` é recusado em produção), `Turnstile__SecretKey` (chave real do site no painel da Cloudflare).
+- Variáveis obrigatórias da autenticação: `Jwt__Issuer`, `Jwt__Audience`, `Jwt__SigningKey` (gerar uma chave nova, nunca reaproveitar a de dev), `Front__BaseUrl`, `Email__Provider=Brevo` + `Email__Brevo__ApiKey` + `Email__Brevo__SenderEmail` (remetente verificado no Brevo; `Email__Brevo__SenderName` opcional, padrão "Volumo"; `File` é recusado em produção), `Turnstile__SecretKey` (chave real do site no painel da Cloudflare).
 - Migrations em produção via `dotnet ef migrations script --idempotent`, nunca aplicadas automaticamente na inicialização. Assim o usuário do banco da aplicação não precisa de permissão para alterar tabelas.
 - Se houver Cloudflare ou outro proxy na frente, ajustar o IP do rate limiting (Forwarded Headers), senão todos os usuários caem no mesmo limite.
 
 ### Lembretes da autenticação
 - Rotas de personal **precisam** usar `[Authorize(Policy = Policies.Personal)]` (2FA obrigatório e conta ativa dependem disso); de aluno, `Policies.Aluno`. Toda rota nova entra na matriz de testes 401/403/404.
-- Escolher o **provedor de e-mail** de produção antes do primeiro deploy.
+- Provedor de e-mail de produção: **Brevo** (decisão de 21/10/2026), em `Infrastructure/Email/EmailBrevo.cs` pela API HTTP (sem pacote extra), com corpo em texto e HTML. Falha do Brevo vira exceção sem o conteúdo da mensagem (os links têm tokens). Testes em `Api.Tests/Auth/EmailBrevoTests`. Remetente com Gmail funciona no beta, mas pode cair no spam; com domínio próprio, autenticar o domínio (SPF/DKIM/DMARC) no Brevo.
+- Sites do beta no MonsterASP (21/10/2026): `https://apivolumo.runasp.net` (API) e `https://appvolumo.runasp.net` (front), HTTPS com Let's Encrypt. O `runasp.net` não está na Public Suffix List, então os dois contam como o mesmo site e o cookie `SameSite=Strict` funciona. Arquivos `.publishSettings` têm a senha de deploy: ficam fora do repositório.
+- **Ideia (21/10/2026): login com Google**, depois do beta. Cuidados: personal continua com 2FA do app; aluno novo só entra pelo convite (o Google não cria vínculo); conta existente com o mesmo e-mail só é ligada depois de login com senha; a anonimização já remove logins externos.
 - Limpeza periódica de refresh tokens vencidos/revogados (tabela cresce a cada renovação).
 
 ### Para a fase 5 em diante
 - Consultas de listagem sem paginação (limites fixos de 200–500): paginar quando os volumes crescerem.
 - Toda entidade nova com dono precisa de regra em `ConfigurarFiltrosDeDono` e de linha nos `FiltrosDeDonoTests`.
 - **Ideias de produto que afetam o modelo de `Exercicio`** (registradas em 16/10/2026, fora do MVP; ver seção 1 do CLAUDE.md):
-  - **Vídeo de execução:** URL do vídeo (storage com URL assinada ou plataforma externa) no exercício do catálogo; personal pode ter vídeo próprio nos exercícios personalizados.
+  - **Vídeo de execução:** URL do vídeo (storage com URL assinada ou plataforma externa) no exercício do catálogo; personal pode ter vídeo próprio nos exercícios personalizados. **Padrão do catálogo (decisão de 20/10/2026, no estilo do Hevy):** vídeos curtos em loop, sem som, todos da mesma fonte e mesmo estilo visual; cada exercício com músculo principal/secundários, equipamento e instruções em passos (ver CLAUDE.md, seção 1). Vídeo do personal fica marcado como dele, fora do padrão do catálogo.
   - **Substituição por aparelho indisponível:** o exercício precisa de **equipamento** (máquina, halteres, barra, polia, peso corporal...), **padrão de movimento** (empurrar horizontal, agachar...) e uma relação de **variações livres** e **similares**. Na sessão, o `RegistroSerie` passa a guardar o exercício executado e o prescrito originalmente, para o personal ver a troca. É a mesma base do "modo academia lotada".
 - Limite de alunos por plano (Grátis: 3) ao aceitar convite.
 - Inadimplência (fase 6): item 1b da seção "Decisões de produto sobre contas".
@@ -447,8 +462,19 @@ src/Volumo.Client
 ├── Componentes/               → Marca, VerificacaoHumana (Turnstile via js/volumo.js), RedirecionarParaEntrar, ContaPausada
 ├── Pages/Entrada/             → Entrar (senha → código 2FA → código de recuperação), Cadastro (personal), ConfirmarEmail, EsqueciSenha, RedefinirSenha, AceitarConvite
 ├── Pages/Conta/               → Conta (dados, sair), DoisFatores (chave + link otpauth, códigos de recuperação)
-├── Pages/Personal/Alunos.razor → alunos ativos + convidar + convites aguardando
-├── Pages/Aluno/MeusTreinos.razor → lista de treinos (detalhe e sessão na próxima etapa)
+├── Pages/Personal/Alunos.razor → alunos ativos (link para o aluno) + convidar + convites aguardando
+├── Pages/Personal/Aluno.razor  → treinos do aluno (editar/arquivar), mandar modelo, novo treino, últimas sessões
+├── Pages/Personal/Modelos.razor, EditarModelo.razor, EditarTreino.razor → modelos e treinos com o construtor
+├── Pages/Aluno/MeusTreinos.razor → lista (API ou cópia no aparelho), treino em andamento, últimos treinos
+├── Pages/Aluno/Treino.razor   → detalhe do treino + começar/continuar
+├── Pages/Aluno/Sessao.razor   → execução: séries com −/+, RIR opcional, descanso automático, finalizar
+├── Componentes/ConstrutorDeTreino.razor → monta o plano inteiro (subir/descer, séries, observação) e valida os limites do domínio
+├── Componentes/BuscaDeExercicio.razor → busca sem acento e por grupo; cria exercício personalizado na hora
+├── Componentes/ExigeDoisFatores.razor, IndicadorDeSincronizacao.razor
+├── Infra/ArmazenamentoLocal.cs → IndexedDB via volumo.local (chaves por usuário; nunca token)
+├── Infra/TreinosDoAluno.cs     → API com cópia no aparelho; baixa os treinos e a última sessão de cada um para offline
+├── Infra/SincronizacaoDeSessoes.cs → fila de sessões finalizadas, lotes de 20, envia ao finalizar/abrir/voltar a internet
+├── Infra/Rotulos.cs            → textos em português dos enums, kg, datas, plural, busca sem acento
 └── wwwroot/                   → index.html, css/app.css, fonts/, js/volumo.js, manifest.webmanifest, service-worker(.published).js, ícones
 ```
 
@@ -456,10 +482,44 @@ src/Volumo.Client
 - **Login com `?voltar=`** só aceita caminho do próprio app (contra redirecionamento aberto).
 - **PWA:** `ServiceWorkerAssetsManifest` no csproj; a versão publicada guarda o app no aparelho (os dados da API não passam pelo cache). Ícones 192/512 (V limão sobre grafite) gerados por script; trocar quando houver logo definitivo.
 - **Rodar local:** API (`https://localhost:7010`) e Client (`https://localhost:7184`) juntos (Multiple startup projects no Visual Studio). Precisa de `dotnet dev-certs https --trust`. O CORS da API já libera o Client em dev; o cookie do refresh token funciona porque as portas do mesmo host contam como o mesmo site.
-- **Ainda não verificado visualmente:** as telas compilam e o PWA é gerado na publicação, mas não houve teste no navegador nesta sessão. Conferir no navegador e ajustar.
-- Pendências do front: QR code na tela do 2FA (hoje: chave em texto + link `otpauth://`); CSP do site estático (no hospedeiro, com `script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com` e `connect-src` da API); testes de componentes (bUnit) e E2E (Playwright).
+- **Offline do aluno (etapa 2, 20/10/2026):** se o app abre sem rede e sem token, `SessaoDoUsuario` monta um usuário "offline" a partir do id guardado no aparelho (`aluno-offline`, só id) e as telas leem a cópia local. Com a rede de volta, `AnexarToken` renova pelo cookie antes da primeira chamada; se o cookie não vale mais, a sessão é encerrada e a fila fica guardada para o mesmo usuário. Personal continua exigindo rede. Sair apaga as cópias de treino do usuário, mas não a fila (avisa antes se houver envio pendente).
+- **Sessão em andamento** gravada no aparelho a cada série (`{usuario}:em-andamento`); descanso por horário-alvo (certo mesmo com a tela apagada), vibração ao terminar e Wake Lock para manter a tela acesa. A próxima vez do treino vem preenchida com a carga e as repetições da última sessão (cópia local ou `GET /sessoes/{id}`).
+- **Verificado no navegador (20/10/2026)** com Playwright contra a versão **publicada** (service worker ativo): contas e convite; modelo com exercício do catálogo e um criado na hora, reordenação, treino a partir do modelo, treino do zero, arquivar, editar; aluno no celular executando o treino (descanso termina sozinho), envio online; app reaberto **sem internet** abrindo do cache, treino feito offline indo para a fila e subindo sozinho quando a rede volta; personal vendo as duas sessões. Dados de teste removidos do LocalDB.
+- Dica de teste local: o Client publicado lê `appsettings.json` de produção; para testar o service worker localmente, servir a pasta publicada com a configuração de desenvolvimento (e o hash dela atualizado em `service-worker-assets.js`). O limite de cadastro (3 a cada 10 min) zera ao reiniciar a API.
+- **QR code do 2FA** (20/10/2026): gerado no próprio aparelho com QRCoder (SVG, fundo branco para leitura), além da chave em texto e do link `otpauth://`. A chave não passa por serviço externo.
+- Pendências do front: arrastar e soltar no construtor (hoje: subir/descer); série extra além da prescrita na execução; substituição de exercício (aparelho ocupado/inexistente, CLAUDE.md seção 1); CSP do site estático (no hospedeiro, com `script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com` e `connect-src` da API); testes de componentes (bUnit) e E2E (Playwright).
 
 ## 8. Próximo passo
 
-1. **Front, etapa 2:** construtor de treino do personal (templates e treino do aluno, com busca de exercícios) e tela de treino do aluno: séries com carga e repetições em números grandes, cronômetro de descanso automático e **registro offline** (fila no IndexedDB, enviada em lote para `/sessoes/sincronizar` quando houver internet).
-2. **Fase 5.3: painel do personal** (último treino de cada aluno, sumido há mais de 5 dias, estagnado numa carga), já com a tela no front.
+1. ~~Front, etapa 2~~ ✅ (20/10/2026): construtor de treino, modelos, tela de treino do aluno e registro offline (ver seção 7).
+2. ~~Fase 5.3: painel do personal~~ ✅ (20/10/2026).
+3. ~~Publicação do beta~~ ✅ (21/10/2026). Resumo do dia:
+   - **Decisão: beta fechado e gratuito antes da cobrança.** A fase 6 é construída durante o beta, ajustada pelo feedback dos personais; cobrança pronta no fim do beta, com preço de fundador para quem participou.
+   - **MonsterASP:** dois websites, `apivolumo.runasp.net` (API) e `appvolumo.runasp.net` (front), HTTPS Let's Encrypt nos dois (ligar também o "HTTPS redirect" no painel). Todas as configurações da API como variáveis de ambiente no painel (*Websites → Manage website → Scripting → Environment Variables*): `AllowedHosts`, `ConnectionStrings__Volumo`, `Cors__AllowedOrigins__0`, `Email__Provider`, `Email__Brevo__ApiKey|SenderEmail|SenderName`, `Front__BaseUrl`, `https_port`, `Jwt__Audience|Issuer|SigningKey`, `Turnstile__SecretKey`. Sem `ASPNETCORE_ENVIRONMENT` (padrão Production). O painel travou ao salvar a connection string com `Password=` e espaços; funcionou com o formato simplificado.
+   - **Banco:** criado no MonsterASP (`db74982.public.databaseasp.net`); estrutura criada com `artifacts/migracao.sql` (ver "Banco de dados").
+   - **E-mail:** Brevo implementado (`EmailBrevo`), remetente `contato.volumo@gmail.com` (Gmail dedicado ao projeto, usado também nas contas de serviços). Com domínio próprio, autenticar o domínio no Brevo.
+   - **Turnstile:** widget da Cloudflare para `appvolumo.runasp.net`; Site Key pública no `wwwroot/appsettings.json` do Client, que agora aponta para `https://apivolumo.runasp.net`.
+   - Publicação pelo Visual Studio com os `.publishSettings` (guardados fora do repositório, têm a senha de deploy), "Remove additional files at destination" desmarcado. Testado pelo usuário de ponta a ponta.
+   - Segredos (chaves do Brevo, JWT, senha do banco) nunca passam pela conversa: o usuário cola direto no painel ou no `user-secrets`. A chave do Brevo colada no chat foi revogada e trocada.
+4. **Próximo: preparar o beta para testadores de fora** (em andamento quando a sessão de 21/10 parou):
+   - Termos de uso e política de privacidade (primeira versão escrita pelo Claude, revisar com advogado antes do lançamento pago) + aceite no cadastro gravado com data e versão.
+   - Excluir conta pela tela (rota com reautenticação chamando `ExclusaoDeConta`, botão em "Conta").
+   - Botão "Enviar opinião" (WhatsApp do Volumo ou formulário).
+   - Com o usuário: conferir backup automático do banco no MonsterASP e testar uma restauração; chamar os personais do beta (CLAUDE.md, seção 10).
+   - Vídeos dos exercícios: **não implementados** (só a ideia e o padrão de 20/10). Ficam para depois do beta; perguntar aos personais se os alunos sentem falta. O difícil é a fonte (biblioteca licenciada, gravação própria ou ilustração SVG).
+5. **Fase 6: cobrança + LGPD**: assinatura do personal com webhook do gateway (validação de assinatura e idempotência) e as regras de inadimplência já aprovadas (seção "Decisões de produto sobre contas", item 1b); limite de alunos por plano; consentimento, exportação e exclusão de conta.
+   - **Decisão pendente antes de começar:** qual gateway (Mercado Pago, Asaas ou Stripe — CLAUDE.md, seção 4). Afeta o webhook, o fluxo de assinatura recorrente e o Pix.
+
+4. **Painel administrativo da plataforma (para a TI / dono do Volumo)** — pedido do usuário em 20/10/2026, importante. Área só para o papel `Admin` (já existe, com 2FA obrigatório e as rotas `/admin/usuarios/{id}/suspender|remover-suspensao`). Deve mostrar:
+   - **Pagamentos:** assinaturas dos personais (plano, situação: em dia / em carência / inadimplente / rebaixado), cobranças e falhas, comissões das vendas de treinos, MRR e churn (métricas da seção 12 do CLAUDE.md).
+   - **Contas:** personais e alunos (ativos, inativos, suspensos), busca, suspender/remover suspensão, validação de CREF.
+   - **Uso:** personais ativos, alunos por personal, treinos registrados por semana, conversão grátis → pago.
+   - **Saúde do sistema:** erros recentes, webhooks recusados, fila de e-mails.
+   - Faz sentido junto ou logo depois da fase 6, porque os dados de pagamento nascem nela. Toda rota nova entra na matriz 401/403/404 (Admin com 2FA) e nada de dados de saúde dos alunos no painel (LGPD: só números agregados).
+
+**Ideias registradas para depois (20/10/2026):**
+- Imagem por exercício no estilo do Hevy: a parte de código é simples (campo de imagem no `Exercicio`); o difícil é a fonte das ilustrações (pacote licenciado ou ilustrador), que deve ser a mesma dos vídeos. Alternativa barata discutida: boneco SVG próprio com o grupo muscular destacado (reaproveita no mapa muscular). O usuário pediu para deixar para depois.
+
+**Para testar localmente (lembrete):**
+- API e Client no perfil **https** (`https://localhost:7010` e `https://localhost:7184`); no perfil http o login pode cair ao recarregar (cookie só em https).
+- E-mails de desenvolvimento ficam em `%TEMP%\volumo-emails` (confirmação, convite, troca de senha). Conta do usuário no LocalDB: `cauabr2@gmail.com` (e-mail confirmado manualmente em 20/10).

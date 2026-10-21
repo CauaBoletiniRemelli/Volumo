@@ -697,11 +697,23 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.Property<Guid>("AlunoId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CriterioDeEstagnacao")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Tempo");
+
                     b.Property<DateTimeOffset?>("EncerradoEm")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset>("IniciadoEm")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("LimiteDeEstagnacao")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(15);
 
                     b.Property<Guid>("PersonalId")
                         .HasColumnType("uniqueidentifier");

@@ -3,6 +3,8 @@
 @inject ApiVolumo Api
 @inject SessaoDoUsuario Sessao
 @inject NavigationManager Navegacao
+@inject TreinosDoAluno Treinos
+@inject SincronizacaoDeSessoes Sincronizacao
 
 <PageTitle>Conta · Volumo</PageTitle>
 
@@ -37,8 +39,15 @@ else
         </dl>
     </div>
 
-    <div class="acoes-da-conta">
-        <button class="botao" disabled="@_saindo" @onclick="SairAsync">Sair deste aparelho</button>
+    <div class="acoes-da-conta pilha" style="--espaco: 12px">
+        @if (_confirmandoSaida)
+        {
+            <p class="aviso">
+                <span class="numero">@Sincronizacao.Pendentes</span> @(Sincronizacao.Pendentes == 1 ? "treino ainda não foi enviado" : "treinos ainda não foram enviados").
+                Eles ficam guardados neste aparelho e sobem quando você entrar de novo com internet.
+            </p>
+        }
+        <button class="botao" disabled="@_saindo" @onclick="SairAsync">@(_confirmandoSaida ? "Sair mesmo assim" : "Sair deste aparelho")</button>
     </div>
 }
 
@@ -46,6 +55,7 @@ else
     private DadosDaConta? _dados;
     private string? _erro;
     private bool _saindo;
+    private bool _confirmandoSaida;
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,7 +66,18 @@ else
 
     private async Task SairAsync()
     {
+        if (Sincronizacao.Pendentes > 0 && !_confirmandoSaida)
+        {
+            _confirmandoSaida = true;
+            return;
+        }
+
         _saindo = true;
+        if (Sessao.UsuarioId is not null)
+        {
+            await Treinos.LimparCopiasAsync();
+        }
+
         await Api.PostAsync("auth/logout");
         Sessao.Encerrar();
         Navegacao.NavigateTo("entrar", replace: true);

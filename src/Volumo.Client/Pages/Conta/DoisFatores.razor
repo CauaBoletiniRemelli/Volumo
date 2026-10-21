@@ -1,5 +1,6 @@
 @page "/conta/2fa"
 @attribute [Authorize]
+@using QRCoder
 @using System.ComponentModel.DataAnnotations
 @inject ApiVolumo Api
 @inject SessaoDoUsuario Sessao
@@ -47,9 +48,14 @@
         {
             <ol class="passos">
                 <li>
-                    <p>No aplicativo autenticador, adicione uma conta e digite esta chave:</p>
+                    <p>No aplicativo autenticador, adicione uma conta e escaneie o QR code:</p>
+                    @if (_qrCode is not null)
+                    {
+                        <div class="qr-code" role="img" aria-label="QR code para o aplicativo autenticador">@_qrCode</div>
+                    }
+                    <p class="secundario">Sem câmera? Escolha "inserir chave" no aplicativo e digite:</p>
                     <p class="chave numero">@_configuracao.Chave</p>
-                    <p class="secundario">No celular, dá para tocar em <a href="@_configuracao.UriOtpauth">abrir no aplicativo</a> em vez de digitar.</p>
+                    <p class="secundario">No celular, dá para tocar em <a href="@_configuracao.UriOtpauth">abrir no aplicativo</a> em vez de escanear.</p>
                 </li>
                 <li>
                     <EditForm Model="_form" OnValidSubmit="AtivarAsync" class="formulario" FormName="ativar-2fa">
@@ -74,6 +80,7 @@
 @code {
     private readonly Formulario _form = new();
     private ConfiguracaoDeDoisFatores? _configuracao;
+    private MarkupString? _qrCode;
     private IReadOnlyList<string>? _codigosDeRecuperacao;
     private string? _erro;
     private bool _enviando;
@@ -86,6 +93,15 @@
         _enviando = false;
         _configuracao = resultado.Valor;
         _erro = resultado.Erro;
+        _qrCode = _configuracao is null ? null : GerarQrCode(_configuracao.UriOtpauth);
+    }
+
+    /// <summary>SVG gerado aqui mesmo a partir do link otpauth (conteúdo vindo da API, sem entrada do usuário).</summary>
+    private static MarkupString GerarQrCode(string uriOtpauth)
+    {
+        using var gerador = new QRCodeGenerator();
+        using var dados = gerador.CreateQrCode(uriOtpauth, QRCodeGenerator.ECCLevel.M);
+        return new MarkupString(new SvgQRCode(dados).GetGraphic(6, "#0F1115", "#FFFFFF", drawQuietZones: true));
     }
 
     private async Task AtivarAsync()

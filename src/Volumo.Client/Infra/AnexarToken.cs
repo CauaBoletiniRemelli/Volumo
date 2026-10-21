@@ -13,7 +13,8 @@ public sealed class AnexarToken(SessaoDoUsuario sessao) : DelegatingHandler
     {
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
 
-        if (sessao.TokenDeAcesso is not null && sessao.PertoDeVencer())
+        // Aberto offline: a internet pode ter voltado, então tenta recuperar a sessão pelo cookie.
+        if (sessao.Offline || (sessao.TokenDeAcesso is not null && sessao.PertoDeVencer()))
         {
             await sessao.RenovarAsync();
         }

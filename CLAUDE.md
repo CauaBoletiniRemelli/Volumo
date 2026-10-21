@@ -20,6 +20,9 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
 - **Modo academia lotada**: se o aparelho está ocupado, sugere um substituto que trabalha o mesmo músculo.
 - **Aparelho indisponível ou inexistente na academia** (ideia de 16/10/2026): o aluno escolhe entre (a) fazer uma **variação livre** do exercício (ex.: halteres em vez de máquina) ou (b) **substituir** por outro exercício de uma lista de similares (mesmo músculo e movimento). A troca fica registrada na sessão para o personal ver.
 - **Vídeos de execução** (ideia de 16/10/2026): cada exercício do catálogo com um vídeo curto mostrando a execução correta, pensando principalmente em iniciantes.
+  - **Padronização (decisão de 20/10/2026), tomando como base a biblioteca de exercícios do Hevy:** vídeos curtos e diretos (poucos segundos, em loop, sem som nem narração, só o movimento), todos da **mesma fonte** e no mesmo estilo (mesmo enquadramento, fundo neutro, mesma pessoa ou modelo, mesma duração aproximada). Nada de misturar vídeos de origens diferentes (YouTube, redes sociais) no catálogo.
+  - Junto do vídeo, cada exercício do catálogo traz o mesmo pacote de informações: músculo principal e secundários, equipamento e instruções curtas em passos.
+  - Vídeo próprio do personal (exercícios personalizados) fica separado do catálogo e identificado como dele, para não quebrar o padrão.
 - **Treino que se adapta ao dia**: "dormi mal" ou "só tenho 30 min" encurta ou ajusta o treino sem perder o foco da semana.
 - **Mapa muscular de volume semanal**: boneco colorido mostrando músculos com pouco ou muito volume.
 - **Recordes e histórico visual**: gráficos de evolução e alertas de novo recorde pessoal.
@@ -28,10 +31,14 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
 ### Para personal trainers
 - **Construtor de treino rápido**: arrastar e soltar, templates reutilizáveis, periodização (mesociclos).
 - **Painel de alunos**: quem treinou, quem sumiu há 5 dias, quem estagnou numa carga.
+  - **Estagnação configurável por aluno** (decisão de 20/10/2026): o personal escolhe medir por dias ou por sessões sem subir peso; padrão de 15 dias sem subir peso, indicado na tela.
 - **Vitrine/loja própria**: página com o nome do personal para vender programas prontos, com Pix e cartão.
 - **Feedback por vídeo**: o aluno grava a execução e o personal comenta no ponto exato.
 - **Check-ins automáticos**: fotos, peso e medidas com comparativo lado a lado.
 - **White label leve**: logo e cores do personal no app do aluno.
+
+### Para a plataforma (TI / dono do Volumo)
+- **Painel administrativo** (pedido de 20/10/2026, importante): visão de pagamentos e assinaturas (situação de cada personal, falhas de cobrança, comissões, MRR, churn), contas (personais e alunos, suspensão, CREF), uso da plataforma e saúde do sistema. Só para o papel Admin com 2FA; dados de alunos apenas agregados (LGPD). Detalhes e ordem em `docs/contexto-backend.md`, seção 8.
 
 ### Diferenciais mais ousados
 - Desafios entre alunos do mesmo personal (ranking de frequência, não de carga).
@@ -44,6 +51,11 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
   - Começar pelo ranking **por personal** (escopo pequeno, já previsto) e só depois academia/cidade.
 - Gerar treino com IA a partir de uma conversa, sempre revisável pelo personal.
 - Integração com relógios e Apple Health / Google Fit.
+- **Compartilhar treinos** (ideia de 21/10/2026): o aluno manda um link para outras pessoas seguirem o treino. Cuidados levantados:
+  - Treino montado pelo próprio aluno: compartilhamento livre. Treino prescrito pelo personal é o produto dele (concorre com a loja): só com autorização do personal e com o nome dele no treino, virando propaganda para ele.
+  - Link público só leitura com exercícios e séries, sem cargas nem histórico de quem compartilhou; "Copiar para meus treinos" exige criar conta; quem compartilhou pode desativar o link.
+  - Depende do cadastro de aluno sem convite (hoje o aluno só entra por convite). Depois do beta.
+- **Login com Google** (ideia de 21/10/2026), depois do beta: personal continua com o 2FA do app; aluno novo segue entrando pelo convite; conta existente com o mesmo e-mail só é ligada depois de um login com senha.
 
 ---
 

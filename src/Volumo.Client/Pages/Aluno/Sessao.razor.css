@@ -1,0 +1,143 @@
+/* Tela de treino: uso com uma mão, números grandes, alvos de toque generosos. */
+
+.sessao-cabecalho { display: grid; gap: 14px; margin-bottom: 20px; }
+
+.exercicio-nome { font-size: clamp(2rem, 8vw, 3rem); }
+
+.mapa { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.mapa-item {
+    min-width: 40px;
+    height: 40px;
+    border: 1px solid var(--linha-forte);
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    font: 500 .9rem/1 var(--fonte-numero);
+    cursor: pointer;
+}
+
+.mapa-feito { color: var(--texto-3); border-color: var(--linha); text-decoration: line-through; }
+.mapa-atual { color: var(--sobre-acao); background: var(--acao); border-color: var(--acao); text-decoration: none; }
+
+.series-da-sessao { display: grid; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
+
+.serie-sessao {
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--superficie);
+}
+
+.serie-linha {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    min-height: 52px;
+    padding: 14px 16px;
+}
+
+.serie-num { color: var(--texto-3); min-width: 1.2em; }
+.serie-resultado { font-size: 1.15rem; flex: 1; }
+.serie-feita { background: transparent; }
+.serie-feita .serie-num { color: var(--acao); }
+.serie-ativa { border-color: var(--acao); }
+
+.registro { display: grid; gap: 18px; padding: 4px 16px 16px; }
+
+.ajuste { display: grid; gap: 8px; }
+
+.ajuste-controles {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 64px;
+    gap: 8px;
+}
+
+.passo {
+    height: 64px;
+    border: 1px solid var(--linha-forte);
+    border-radius: var(--raio);
+    background: var(--superficie-2);
+    color: var(--texto);
+    font: 500 1.8rem/1 var(--fonte-texto);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.passo:active { border-color: var(--acao); }
+
+.ajuste-valor {
+    width: 100%;
+    height: 64px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font-size: 2rem;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+
+.ajuste-valor::-webkit-inner-spin-button, .ajuste-valor::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.ajuste-valor:focus { outline: none; border-color: var(--acao); }
+
+.rir { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+
+.rir-opcao {
+    height: 48px;
+    border: 1px solid var(--linha-forte);
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.rir-ativa { color: var(--texto); border-color: var(--acao); }
+
+.sessao-navegacao {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+/* Espaço no fim para a barra de descanso não cobrir o botão. */
+.finalizar { margin: 28px 0 120px; padding-top: 20px; border-top: 1px solid var(--linha); }
+
+/* Descanso: barra fixa acima da navegação do celular. */
+.descanso {
+    position: fixed;
+    inset: auto 0 calc(61px + env(safe-area-inset-bottom)) 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 16px;
+    padding: 12px var(--gutter);
+    background: var(--fundo-fundo);
+    border-top: 1px solid var(--acao);
+}
+
+.descanso-tempo { font-size: 2.6rem; line-height: 1; color: var(--acao); }
+.descanso-acoes { display: flex; gap: 8px; }
+.descanso-acoes .botao { padding: 0 14px; white-space: nowrap; }
+
+.resumo { max-width: 520px; }
+
+.numeros-do-resumo {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-inline: 0;
+    margin-bottom: 0;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--superficie);
+}
+
+.numeros-do-resumo > div { display: grid; gap: 8px; padding: 16px; border-right: 1px solid var(--linha); }
+.numeros-do-resumo > div:last-child { border-right: 0; }
+.numeros-do-resumo dd { margin: 0; font-size: 1.3rem; color: var(--acao); white-space: nowrap; }
+
+@media (min-width: 960px) {
+    .descanso { inset: auto 0 0 232px; padding: 16px 56px; }
+}

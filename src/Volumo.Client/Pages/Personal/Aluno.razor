@@ -1,0 +1,297 @@
+@page "/alunos/{AlunoId:guid}"
+@attribute [Authorize(Roles = "Personal")]
+@using Volumo.Shared.Alunos
+@using Volumo.Shared.Painel
+@using Volumo.Shared.Sessoes
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+<PageTitle>@(_aluno?.Nome ?? "Aluno") · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <p class="rotulo"><a href="alunos">Alunos</a></p>
+    <h1>@(_aluno?.Nome ?? "Aluno")</h1>
+    @if (_aluno is not null)
+    {
+        <p class="secundario">Acompanha você desde <span class="numero">@Rotulos.Data(_aluno.VinculadoDesde)</span></p>
+    }
+</header>
+
+<ExigeDoisFatores>
+    @if (_erro is not null)
+    {
+        <p class="aviso aviso-erro" role="alert">@_erro</p>
+    }
+    else
+    {
+        <div class="duas-colunas">
+            <div class="pilha" style="--espaco: 24px">
+                <section class="painel">
+                    <div class="painel-cabecalho">
+                        <h2>Treinos</h2>
+                        <a class="botao botao-principal" href="alunos/@AlunoId/treinos/novo">Novo treino</a>
+                    </div>
+                    @if (_treinos is null)
+                    {
+                        <p class="lista-vazia">Carregando.</p>
+                    }
+                    else if (_treinos.Count == 0)
+                    {
+                        <p class="lista-vazia">Nenhum treino ainda. Monte um do zero ou mande um dos seus modelos.</p>
+                    }
+                    else
+                    {
+                        <ul class="lista">
+                            @foreach (var treino in _treinos)
+                            {
+                                <li>
+                                    <a class="treino-nome" href="treinos/@treino.Id/editar">@treino.Nome</a>
+                                    <span class="linha-de-botoes alinhada">
+                                        <span class="secundario"><span class="numero">@treino.QuantidadeDeExercicios</span> @Rotulos.Plural(treino.QuantidadeDeExercicios, "exercício", "exercícios")</span>
+                                        @if (_confirmando == treino.Id)
+                                        {
+                                            <button class="botao botao-texto texto-erro" @onclick="() => ArquivarAsync(treino.Id)">Confirmar</button>
+                                            <button class="botao botao-texto" @onclick="() => _confirmando = null">Manter</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="botao botao-texto" @onclick="() => _confirmando = treino.Id">Arquivar</button>
+                                        }
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                <section class="painel">
+                    <div class="painel-cabecalho"><h2>Últimos treinos feitos</h2></div>
+                    @if (_sessoes is null)
+                    {
+                        <p class="lista-vazia">Carregando.</p>
+                    }
+                    else if (_sessoes.Count == 0)
+                    {
+                        <p class="lista-vazia">O aluno ainda não registrou nenhum treino.</p>
+                    }
+                    else
+                    {
+                        <ul class="lista">
+                            @foreach (var sessao in _sessoes.Take(10))
+                            {
+                                <li>
+                                    <span>
+                                        <span class="treino-nome">@(sessao.NomeDoTreino ?? "Treino livre")</span>
+                                        <span class="secundario numero"> · @Rotulos.Data(sessao.IniciadaEm)</span>
+                                    </span>
+                                    <span class="secundario"><span class="numero">@sessao.QuantidadeDeSeries</span> @Rotulos.Plural(sessao.QuantidadeDeSeries, "série", "séries") · <span class="numero">@Rotulos.Kg(sessao.VolumeKg)</span> kg</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+
+            <aside class="pilha" style="--espaco: 24px">
+            <section class="painel">
+                <div class="painel-cabecalho"><h3>Mandar um modelo</h3></div>
+                <div class="painel-corpo pilha" style="--espaco: 14px">
+                    @if (_modelos is { Count: 0 })
+                    {
+                        <p class="secundario">Você ainda não tem modelos. <a href="modelos/novo">Criar o primeiro</a>.</p>
+                    }
+                    else if (_modelos is not null)
+                    {
+                        <div class="campo">
+                            <label class="rotulo" for="modelo">Modelo</label>
+                            <select id="modelo" @bind="_modeloEscolhido">
+                                <option value="">Escolha</option>
+                                @foreach (var modelo in _modelos)
+                                {
+                                    <option value="@modelo.Id">@modelo.Nome</option>
+                                }
+                            </select>
+                        </div>
+                        @if (_mensagem is not null)
+                        {
+                            <p class="aviso @(_mensagemOk ? "aviso-ok" : "aviso-erro")" role="status">@_mensagem</p>
+                        }
+                        <button class="botao botao-principal botao-largo" disabled="@(_enviando || _modeloEscolhido is null)" @onclick="AtribuirAsync">Mandar para o aluno</button>
+                        <p class="campo-ajuda">O aluno recebe uma cópia. Mudanças depois no modelo não alteram o treino dele.</p>
+                    }
+                </div>
+            </section>
+
+            @if (_noPainel is not null)
+            {
+                <section class="painel">
+                    <div class="painel-cabecalho"><h3>Alerta de estagnação</h3></div>
+                    <div class="painel-corpo pilha" style="--espaco: 14px">
+                        @if (_noPainel.Estagnados.Count == 0)
+                        {
+                            <p class="secundario">Nenhum exercício parado pelo critério atual.</p>
+                        }
+                        else
+                        {
+                            <ul class="estagnados">
+                                @foreach (var exercicio in _noPainel.Estagnados)
+                                {
+                                    <li>
+                                        <span>@exercicio.NomeDoExercicio</span>
+                                        <span class="secundario"><span class="numero texto-alerta">@Rotulos.Kg(exercicio.MaiorCargaKg) kg</span> · @Rotulos.Estagnacao(_noPainel.Estagnacao.Criterio, exercicio, DateTimeOffset.UtcNow)</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+
+                        <div class="campo">
+                            <span class="rotulo">Avisar quando ficar</span>
+                            <div class="escolha" role="radiogroup" aria-label="Critério de estagnação">
+                                <button type="button" role="radio" aria-checked="@(_criterio == CriterioDeEstagnacao.Tempo)" class="escolha-opcao @(_criterio == CriterioDeEstagnacao.Tempo ? "escolha-ativa" : null)" @onclick="() => TrocarCriterio(CriterioDeEstagnacao.Tempo)">Dias</button>
+                                <button type="button" role="radio" aria-checked="@(_criterio == CriterioDeEstagnacao.Sessoes)" class="escolha-opcao @(_criterio == CriterioDeEstagnacao.Sessoes ? "escolha-ativa" : null)" @onclick="() => TrocarCriterio(CriterioDeEstagnacao.Sessoes)">Sessões</button>
+                            </div>
+                        </div>
+                        <div class="campo">
+                            <label class="rotulo" for="limite-estagnacao">@(_criterio == CriterioDeEstagnacao.Tempo ? "Dias sem subir peso (7 a 90)" : "Sessões sem subir peso (2 a 10)")</label>
+                            <input id="limite-estagnacao" type="number" class="numero"
+                                   min="@(_criterio == CriterioDeEstagnacao.Tempo ? 7 : 2)" max="@(_criterio == CriterioDeEstagnacao.Tempo ? 90 : 10)" @bind="_limite" />
+                        </div>
+                        <p class="campo-ajuda">Padrão: 15 dias sem subir peso.@(EhPadrao ? " Este aluno está no padrão." : null)</p>
+                        @if (_mensagemEstagnacao is not null)
+                        {
+                            <p class="aviso @(_estagnacaoOk ? "aviso-ok" : "aviso-erro")" role="status">@_mensagemEstagnacao</p>
+                        }
+                        <div class="linha-de-botoes">
+                            <button class="botao botao-principal" disabled="@_salvandoEstagnacao" @onclick="SalvarEstagnacaoAsync">Salvar</button>
+                            @if (!EhPadrao)
+                            {
+                                <button class="botao" disabled="@_salvandoEstagnacao" @onclick="VoltarAoPadraoAsync">Voltar ao padrão</button>
+                            }
+                        </div>
+                    </div>
+                </section>
+            }
+            </aside>
+        </div>
+    }
+</ExigeDoisFatores>
+
+@code {
+    private static readonly ConfiguracaoDeEstagnacao Padrao = new(CriterioDeEstagnacao.Tempo, 15);
+
+    private AlunoResumo? _aluno;
+    private AlunoNoPainel? _noPainel;
+    private CriterioDeEstagnacao _criterio = Padrao.Criterio;
+    private int _limite = Padrao.Limite;
+    private string? _mensagemEstagnacao;
+    private bool _estagnacaoOk;
+    private bool _salvandoEstagnacao;
+    private List<TreinoResumo>? _treinos;
+    private List<SessaoResumo>? _sessoes;
+    private List<TemplateResumo>? _modelos;
+    private Guid? _modeloEscolhido;
+    private Guid? _confirmando;
+    private string? _erro;
+    private string? _mensagem;
+    private bool _mensagemOk;
+    private bool _enviando;
+
+    [Parameter]
+    public Guid AlunoId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var alunos = await Api.GetAsync<List<AlunoResumo>>("alunos");
+        if (!alunos.Ok)
+        {
+            _erro = alunos.Erro;
+            return;
+        }
+
+        _aluno = alunos.Valor!.Find(a => a.Id == AlunoId);
+        if (_aluno is null)
+        {
+            _erro = "Aluno não encontrado. O acompanhamento pode ter sido encerrado.";
+            return;
+        }
+
+        await CarregarTreinosAsync();
+        _sessoes = (await Api.GetAsync<List<SessaoResumo>>($"alunos/{AlunoId}/sessoes")).Valor ?? [];
+        _modelos = (await Api.GetAsync<List<TemplateResumo>>("templates")).Valor ?? [];
+        await CarregarPainelAsync();
+    }
+
+    private bool EhPadrao => _noPainel?.Estagnacao == Padrao;
+
+    private async Task CarregarPainelAsync()
+    {
+        _noPainel = (await Api.GetAsync<PainelDoPersonal>("painel")).Valor?.Alunos.FirstOrDefault(a => a.Id == AlunoId);
+        if (_noPainel is not null)
+        {
+            _criterio = _noPainel.Estagnacao.Criterio;
+            _limite = _noPainel.Estagnacao.Limite;
+        }
+    }
+
+    private void TrocarCriterio(CriterioDeEstagnacao criterio)
+    {
+        if (_criterio == criterio)
+        {
+            return;
+        }
+
+        // Sugere um número que faça sentido na nova unidade.
+        _criterio = criterio;
+        _limite = criterio == CriterioDeEstagnacao.Tempo ? Padrao.Limite : 3;
+    }
+
+    private Task VoltarAoPadraoAsync()
+    {
+        _criterio = Padrao.Criterio;
+        _limite = Padrao.Limite;
+        return SalvarEstagnacaoAsync();
+    }
+
+    private async Task SalvarEstagnacaoAsync()
+    {
+        _salvandoEstagnacao = true;
+        var resultado = await Api.PutAsync($"alunos/{AlunoId}/estagnacao", new ConfiguracaoDeEstagnacao(_criterio, _limite));
+        _salvandoEstagnacao = false;
+        _estagnacaoOk = resultado.Ok;
+        _mensagemEstagnacao = resultado.Ok ? $"Salvo: avisar com {Rotulos.Criterio(new ConfiguracaoDeEstagnacao(_criterio, _limite))}." : resultado.Erro;
+        if (resultado.Ok)
+        {
+            await CarregarPainelAsync();
+        }
+    }
+
+    private async Task CarregarTreinosAsync()
+    {
+        var resultado = await Api.GetAsync<List<TreinoResumo>>($"alunos/{AlunoId}/treinos");
+        _treinos = resultado.Valor ?? [];
+        _mensagem ??= resultado.Erro;
+    }
+
+    private async Task AtribuirAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync<RecursoCriado>($"templates/{_modeloEscolhido}/atribuir", new AtribuicaoDeTemplate(AlunoId));
+        _enviando = false;
+        _mensagemOk = resultado.Ok;
+        _mensagem = resultado.Ok ? "Treino enviado. Já aparece no app do aluno." : resultado.Erro;
+        if (resultado.Ok)
+        {
+            _modeloEscolhido = null;
+            await CarregarTreinosAsync();
+        }
+    }
+
+    private async Task ArquivarAsync(Guid id)
+    {
+        _confirmando = null;
+        var resultado = await Api.PostAsync($"treinos/{id}/inativar");
+        _mensagemOk = resultado.Ok;
+        _mensagem = resultado.Ok ? null : resultado.Erro;
+        await CarregarTreinosAsync();
+    }
+}

@@ -113,6 +113,21 @@ public static class AuthSetup
     private static bool ActiveAccount(AuthorizationHandlerContext context) =>
         !context.User.HasClaim(c => c.Type == VolumoClaims.InactiveAccount);
 
+    /// <summary>Chave da API e remetente vêm de User Secrets/variáveis de ambiente; faltando algo, a API não sobe.</summary>
+    public static ConfiguracaoBrevo LoadBrevo(IConfiguration configuration)
+    {
+        var apiKey = configuration["Email:Brevo:ApiKey"];
+        var remetente = configuration["Email:Brevo:SenderEmail"];
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(remetente))
+        {
+            throw new InvalidOperationException(
+                "Email:Provider=Brevo exige Email:Brevo:ApiKey e Email:Brevo:SenderEmail. Em produção, use as variáveis Email__Brevo__ApiKey e Email__Brevo__SenderEmail.");
+        }
+
+        var nome = configuration["Email:Brevo:SenderName"] is { Length: > 0 } configurado ? configurado : "Volumo";
+        return new ConfiguracaoBrevo(apiKey, remetente, nome);
+    }
+
     private static void AddVolumoEmail(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         var provider = configuration[EmailProviderKey];
@@ -126,8 +141,12 @@ public static class AuthSetup
                     : Path.Combine(Path.GetTempPath(), "volumo-emails");
                 services.AddSingleton<IEnvioDeEmail>(new EmailEmArquivo(folder));
                 break;
+            case "Brevo":
+                services.AddSingleton(LoadBrevo(configuration));
+                services.AddHttpClient<IEnvioDeEmail, EmailBrevo>(client => client.Timeout = TimeSpan.FromSeconds(15));
+                break;
             default:
-                throw new InvalidOperationException($"{EmailProviderKey} não configurado. Valores aceitos hoje: File (só desenvolvimento).");
+                throw new InvalidOperationException($"{EmailProviderKey} não configurado. Valores aceitos: Brevo, File (só desenvolvimento).");
         }
     }
 }

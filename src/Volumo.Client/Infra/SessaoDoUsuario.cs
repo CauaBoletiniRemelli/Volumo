@@ -12,9 +12,12 @@ namespace Volumo.Client.Infra;
 /// Sessão no navegador. O token de acesso fica só em memória (nunca em localStorage); o refresh
 /// token fica no cookie HttpOnly que a API grava. Ao abrir o app, a sessão é restaurada pelo cookie.
 /// Renovações são serializadas: só uma por vez nesta aba.
+/// Aluno que abre o app sem internet entra em "modo offline": sem token, só com o id guardado no
+/// aparelho, para treinar com os dados locais. Quando a rede volta, a sessão é renovada pelo cookie.
 /// </summary>
-public sealed class SessaoDoUsuario(HttpClient semToken) : AuthenticationStateProvider
+public sealed class SessaoDoUsuario(HttpClient semToken, ArmazenamentoLocal local) : AuthenticationStateProvider
 {
+    private const string PapelAluno = "Aluno";
     private static readonly ClaimsPrincipal Anonimo = new(new ClaimsIdentity());
     private readonly SemaphoreSlim _trava = new(1, 1);
     private ClaimsPrincipal _usuario = Anonimo;
@@ -27,6 +30,11 @@ public sealed class SessaoDoUsuario(HttpClient semToken) : AuthenticationStatePr
     public bool ComDoisFatores => _usuario.HasClaim("amr", "mfa");
 
     public bool ContaInativa => _usuario.HasClaim(c => c.Type == "conta_inativa");
+
+    /// <summary>Aberto sem internet, sem token: só os dados guardados no aparelho.</summary>
+    public bool Offline => TokenDeAcesso is null && _usuario.HasClaim("offline", "true");
+
+    public Guid? UsuarioId => Guid.TryParse(_usuario.FindFirst("sub")?.Value, out var id) ? id : null;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
@@ -46,6 +54,11 @@ public sealed class SessaoDoUsuario(HttpClient semToken) : AuthenticationStatePr
         TokenDeAcesso = resposta.TokenDeAcesso;
         ExpiraEm = resposta.ExpiraEm ?? DateTimeOffset.UtcNow;
         _usuario = TokenDeAcesso is null ? Anonimo : LerClaims(TokenDeAcesso);
+        if (_usuario.IsInRole(PapelAluno) && UsuarioId is { } id)
+        {
+            _ = local.GravarAsync(ChavesLocais.AlunoOffline, id);
+        }
+
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_usuario)));
     }
 
@@ -53,6 +66,7 @@ public sealed class SessaoDoUsuario(HttpClient semToken) : AuthenticationStatePr
     {
         TokenDeAcesso = null;
         _usuario = Anonimo;
+        _ = local.ApagarAsync(ChavesLocais.AlunoOffline);
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_usuario)));
     }
 
@@ -74,7 +88,7 @@ public sealed class SessaoDoUsuario(HttpClient semToken) : AuthenticationStatePr
             using var resposta = await semToken.SendAsync(pedido);
             if (!resposta.IsSuccessStatusCode)
             {
-                if (TokenDeAcesso is not null)
+                if (TokenDeAcesso is not null || Offline)
                 {
                     Encerrar();
                 }
@@ -88,6 +102,14 @@ public sealed class SessaoDoUsuario(HttpClient semToken) : AuthenticationStatePr
         catch (HttpRequestException)
         {
             // Sem rede: mantém o que tem (o app continua funcionando offline com os dados locais).
+            if (TokenDeAcesso is null && !Offline && await local.LerAsync<Guid?>(ChavesLocais.AlunoOffline) is { } alunoId)
+            {
+                _usuario = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim("sub", alunoId.ToString()), new Claim("role", PapelAluno), new Claim("offline", "true")],
+                    "offline", "sub", "role"));
+                NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_usuario)));
+            }
+
             return TokenDeAcesso is not null;
         }
         finally

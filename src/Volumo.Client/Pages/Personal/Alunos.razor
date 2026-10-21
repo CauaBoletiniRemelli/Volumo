@@ -16,15 +16,7 @@
     }
 </header>
 
-@if (!Sessao.ComDoisFatores)
-{
-    <div class="aviso pilha">
-        <p>Antes de ver seus alunos, ative a verificação em duas etapas. Leva um minuto.</p>
-        <a class="botao botao-principal" href="conta/2fa">Ativar agora</a>
-    </div>
-}
-else
-{
+<ExigeDoisFatores>
     <div class="duas-colunas">
         <section class="painel">
             <div class="painel-cabecalho">
@@ -44,8 +36,8 @@ else
                     @foreach (var aluno in _alunos)
                     {
                         <li>
-                            <span>@aluno.Nome</span>
-                            <span class="secundario numero">desde @aluno.VinculadoDesde.ToLocalTime().ToString("dd/MM/yy")</span>
+                            <a class="treino-nome" href="alunos/@aluno.Id">@aluno.Nome</a>
+                            <span class="secundario numero">desde @Rotulos.Data(aluno.VinculadoDesde)</span>
                         </li>
                     }
                 </ul>
@@ -89,7 +81,7 @@ else
             }
         </aside>
     </div>
-}
+</ExigeDoisFatores>
 
 @code {
     private readonly Formulario _form = new();

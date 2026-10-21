@@ -26,7 +26,7 @@
 
         if (usuario.IsInRole("Personal"))
         {
-            Navegacao.NavigateTo(Sessao.ComDoisFatores ? "alunos" : "conta/2fa", replace: true);
+            Navegacao.NavigateTo(Sessao.ComDoisFatores ? "painel" : "conta/2fa", replace: true);
         }
         else if (usuario.IsInRole("Aluno"))
         {

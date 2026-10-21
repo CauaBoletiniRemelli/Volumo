@@ -1,0 +1,90 @@
+@page "/treinos/{TreinoId:guid}"
+@attribute [Authorize(Roles = "Aluno")]
+@using Volumo.Shared.Treinos
+@inject TreinosDoAluno Treinos
+@inject NavigationManager Navegacao
+
+<PageTitle>@(_treino?.Nome ?? "Treino") · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <p class="rotulo"><a href="treinos">Treinos</a></p>
+    <h1>@(_treino?.Nome ?? "Treino")</h1>
+</header>
+
+@if (_treino is null)
+{
+    <p class="secundario">@(_erro ?? "Carregando.")</p>
+}
+else
+{
+    <div class="pilha" style="--espaco: 20px">
+        @if (_emAndamento is not null && _emAndamento.TreinoId != TreinoId)
+        {
+            <div class="aviso pilha" style="--espaco: 12px">
+                <p>Você tem outro treino em andamento, com <span class="numero">@_emAndamento.Series.Count</span> séries feitas.</p>
+                <div class="linha-de-botoes">
+                    <a class="botao" href="treinos/@_emAndamento.TreinoId/sessao">Continuar aquele</a>
+                    <button class="botao botao-texto texto-erro" @onclick="DescartarOutroAsync">Descartar e começar este</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <a class="botao botao-principal botao-largo botao-grande" href="treinos/@TreinoId/sessao">
+                @(_emAndamento is null ? "Começar treino" : "Continuar treino")
+            </a>
+        }
+
+        <ol class="itens-do-treino">
+            @foreach (var item in _treino.Itens.OrderBy(i => i.Ordem))
+            {
+                <li class="painel">
+                    <div class="painel-cabecalho">
+                        <h3>@item.NomeDoExercicio</h3>
+                        <span class="secundario"><span class="numero">@item.Series.Count</span> @Rotulos.Plural(item.Series.Count, "série", "séries")</span>
+                    </div>
+                    <div class="painel-corpo pilha" style="--espaco: 8px">
+                        @foreach (var grupo in item.Series.GroupBy(s => (s.Tipo, s.RepeticoesMinimas, s.RepeticoesMaximas, s.CargaKg, s.DescansoSegundos)))
+                        {
+                            <p class="prescricao">
+                                <span class="numero">@grupo.Count() × @Rotulos.Repeticoes(grupo.Key.RepeticoesMinimas, grupo.Key.RepeticoesMaximas)</span>
+                                @if (grupo.Key.CargaKg is { } carga)
+                                {
+                                    <span class="numero"> · @Rotulos.Kg(carga) kg</span>
+                                }
+                                <span class="secundario"> · @Rotulos.Descanso(grupo.Key.DescansoSegundos)@(grupo.Key.Tipo == TipoDeSerie.Aquecimento ? " · aquecimento" : null)</span>
+                            </p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(item.Observacao))
+                        {
+                            <p class="secundario">@item.Observacao</p>
+                        }
+                    </div>
+                </li>
+            }
+        </ol>
+    </div>
+}
+
+@code {
+    private TreinoDetalhe? _treino;
+    private SessaoEmAndamento? _emAndamento;
+    private string? _erro;
+
+    [Parameter]
+    public Guid TreinoId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var treino = await Treinos.DetalheAsync(TreinoId);
+        _treino = treino.Valor;
+        _erro = treino.Erro;
+        _emAndamento = await Treinos.EmAndamentoAsync();
+    }
+
+    private async Task DescartarOutroAsync()
+    {
+        await Treinos.DescartarEmAndamentoAsync();
+        Navegacao.NavigateTo($"treinos/{TreinoId}/sessao");
+    }
+}
