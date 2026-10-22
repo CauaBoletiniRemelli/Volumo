@@ -196,3 +196,10 @@
 
     .item-cabecalho { padding-left: 12px; }
 }
+
+/* Celular: com nome longo, as setas e o × descem para a linha de baixo, alinhados à direita. */
+.item-cabecalho { flex-wrap: wrap; row-gap: 4px; }
+.item-cabecalho .expandir { flex: 1 1 180px; }
+.item-cabecalho .item-titulo { flex: 1 1 160px; }
+.item-nome { overflow-wrap: anywhere; }
+.item-acoes { margin-left: auto; }

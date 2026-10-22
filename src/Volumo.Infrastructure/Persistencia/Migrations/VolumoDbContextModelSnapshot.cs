@@ -626,6 +626,39 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.ToTable("SessoesTreino", (string)null);
                 });
 
+            modelBuilder.Entity("Volumo.Domain.Treinos.AnotacaoDoAluno", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AlunoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AtualizadaEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ExercicioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Texto")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TreinoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlunoId");
+
+                    b.HasIndex("ExercicioId");
+
+                    b.HasIndex("TreinoId", "ExercicioId")
+                        .IsUnique();
+
+                    b.ToTable("AnotacoesDoAluno", (string)null);
+                });
+
             modelBuilder.Entity("Volumo.Domain.Treinos.TemplateTreino", b =>
                 {
                     b.Property<Guid>("Id")
@@ -707,6 +740,13 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.Property<DateTimeOffset?>("AnonimizadoEm")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("CorpoDoDesenho")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Masculino");
+
                     b.Property<DateTimeOffset?>("InativadoEm")
                         .HasColumnType("datetimeoffset");
 
@@ -727,6 +767,13 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
 
                     b.Property<DateTimeOffset?>("AnonimizadoEm")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CorpoDoDesenho")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Masculino");
 
                     b.Property<string>("Cref")
                         .HasMaxLength(11)
@@ -1058,6 +1105,27 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                         .WithMany()
                         .HasForeignKey("TreinoId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Volumo.Domain.Treinos.AnotacaoDoAluno", b =>
+                {
+                    b.HasOne("Volumo.Domain.Usuarios.PerfilAluno", null)
+                        .WithMany()
+                        .HasForeignKey("AlunoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Volumo.Domain.Exercicios.Exercicio", null)
+                        .WithMany()
+                        .HasForeignKey("ExercicioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Volumo.Domain.Treinos.Treino", null)
+                        .WithMany()
+                        .HasForeignKey("TreinoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Volumo.Domain.Treinos.TemplateTreino", b =>

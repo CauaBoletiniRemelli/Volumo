@@ -403,3 +403,75 @@ a:hover { text-decoration-color: var(--acao); }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Ferramentas do exercício (tela do treino) ---------- */
+
+/* Botões secundários do mesmo tamanho, numa linha que quebra no celular; o conteúdo que um deles abre
+   (instruções, anotação) ocupa a linha inteira abaixo de todos. */
+.ferramentas { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+
+.ferramenta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 14px 0 12px;
+    border: 1px solid var(--linha-forte);
+    border-radius: var(--raio);
+    background: var(--superficie);
+    color: var(--texto);
+    font: 600 .95rem/1.2 var(--fonte-texto);
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.ferramenta svg { display: block; flex: none; color: var(--acao); }
+.ferramenta:hover { border-color: var(--acao); }
+.ferramenta:focus-visible { outline: 2px solid var(--acao); outline-offset: 2px; }
+.ferramenta[aria-expanded="true"] { border-color: var(--acao); }
+.ferramenta[aria-expanded="true"] svg { color: var(--texto-2); }
+
+.ferramenta-corpo { order: 10; flex: 1 0 100%; }
+
+/* No celular os botões crescem para encher a linha: bordas alinhadas mesmo quando um cai para a linha de baixo. */
+@media (max-width: 639px) {
+    .ferramentas .ferramenta { flex: 1 1 auto; justify-content: center; }
+}
+
+.exportar { display: grid; gap: 10px; }
+
+/* ---------- Mapa muscular (desenhos de wwwroot/img/corpo, MIT) ----------
+   Global porque o SVG entra como MarkupString (o CSS isolado dos componentes não chega nele).
+   Músculo parado em cinza discreto; principal em limão; secundários em limão apagado. */
+.mapa-muscular { display: grid; gap: 10px; margin: 0; }
+.mapa-corpos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 320px; }
+.mapa-corpo { display: grid; gap: 6px; justify-items: center; }
+.mapa-corpo svg { display: block; width: 100%; height: auto; max-height: 260px; }
+.mapa-corpo path { fill: #3A404B; }
+.mapa-corpo .neutro path { fill: #2A2F38; }
+.mapa-corpo .secundario path { fill: #7A9128; }
+.mapa-corpo .principal path { fill: var(--acao); }
+.mapa-corpo .contorno { fill: none; stroke: var(--linha-forte); stroke-width: 1; }
+.mapa-legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--texto-2); }
+.amostra { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; vertical-align: baseline; }
+.amostra-principal { background: var(--acao); }
+.amostra-secundario { background: #7A9128; }
+
+/* Foto do exercício ao lado do nome (sem foto, o nome fica sozinho, sem espaço vazio). */
+.com-foto { flex: 1 1 auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.painel-cabecalho > .com-foto + .secundario { flex: none; white-space: nowrap; }
+.com-foto > :last-child { min-width: 0; overflow-wrap: anywhere; }
+
+/* ---------- Telas estreitas (ajustes de 22/10/2026) ---------- */
+
+/* Linhas de lista: o que não cabe desce para a linha de baixo em vez de sobrepor ou sair da tela.
+   O link do nome ocupa o espaço que o texto pede (não 0): nome longo fica numa linha só dele. */
+.lista > li { flex-wrap: wrap; row-gap: 4px; }
+.lista > li > * { min-width: 0; overflow-wrap: anywhere; }
+.lista > li > .link-largo { flex: 1 1 auto; }
+
+/* Colunas em grade não crescem com conteúdo comprido (e-mail longo no convite). */
+.duas-colunas > * { min-width: 0; }
+
+.dados dd { flex-wrap: wrap; overflow-wrap: anywhere; }

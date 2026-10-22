@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Volumo.Shared.Painel;
+using Volumo.Shared.Sessoes;
 using Volumo.Shared.Treinos;
 
 namespace Volumo.Client.Infra;
@@ -32,7 +33,15 @@ public static class Rotulos
         _ => grupo.ToString(),
     };
 
-    public static string De(TipoDeSerie tipo) => tipo == TipoDeSerie.Aquecimento ? "Aquecimento" : "Trabalho";
+    public static string De(TipoDeSerie tipo) => tipo switch
+    {
+        TipoDeSerie.Aquecimento => "Aquecimento",
+        TipoDeSerie.Preparatoria => "Preparatória",
+        _ => "Trabalho",
+    };
+
+    /// <summary>" · aquecimento" ou " · preparatória" depois da meta; nada para série de trabalho.</summary>
+    public static string? Marcador(TipoDeSerie tipo) => tipo == TipoDeSerie.Trabalho ? null : $" · {De(tipo).ToLower(PtBr)}";
 
     public static string De(Equipamento equipamento) => equipamento switch
     {
@@ -97,6 +106,56 @@ public static class Rotulos
     };
 
     public static string Data(DateTimeOffset quando) => quando.ToLocalTime().ToString("dd/MM/yy", PtBr);
+
+    public static string Hora(DateTimeOffset quando) => quando.ToLocalTime().ToString("HH:mm", PtBr);
+
+    /// <summary>
+    /// Linha de uma sessão nas listas: "31 séries · 1 h 05 min · 20 min de cardio". Sem soma de kg: somar
+    /// carga de exercícios diferentes não diz nada (o volume que importa é por exercício, no gráfico e no resumo).
+    /// </summary>
+    public static string NumerosDaSessao(SessaoResumo sessao)
+    {
+        ArgumentNullException.ThrowIfNull(sessao);
+        var partes = new List<string> { $"{sessao.QuantidadeDeSeries} {Plural(sessao.QuantidadeDeSeries, "série", "séries")}" };
+        if (sessao.FinalizadaEm is { } fim && fim > sessao.IniciadaEm)
+        {
+            partes.Add(Duracao(fim - sessao.IniciadaEm));
+        }
+
+        if (sessao.MinutosDeCardio > 0)
+        {
+            partes.Add($"{sessao.MinutosDeCardio} min de cardio");
+        }
+
+        return string.Join(" · ", partes);
+    }
+
+    /// <summary>"42 min" ou "1 h 05 min".</summary>
+    public static string Duracao(TimeSpan duracao)
+    {
+        var minutos = Math.Max(1, (int)Math.Round(duracao.TotalMinutes));
+        return minutos < 60 ? $"{minutos} min" : $"{minutos / 60} h {minutos % 60:00} min";
+    }
+
+    /// <summary>Nome de arquivo sem acento nem espaço: "Treino A — Peito" → "treino-a-peito".</summary>
+    public static string ParaArquivo(string texto)
+    {
+        var saida = new StringBuilder();
+        foreach (var c in ParaBusca(texto))
+        {
+            if (char.IsAsciiLetterOrDigit(c))
+            {
+                saida.Append(c);
+            }
+            else if (saida.Length > 0 && saida[^1] != '-')
+            {
+                saida.Append('-');
+            }
+        }
+
+        var nome = saida.ToString().Trim('-');
+        return nome.Length == 0 ? "treino" : nome;
+    }
 
     /// <summary>Para busca: minúsculas e sem acento ("Bíceps" encontra "biceps").</summary>
     public static string ParaBusca(string texto)

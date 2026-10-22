@@ -104,5 +104,10 @@ public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
         {
             treino.Inativar(agora);
         }
+
+        foreach (var anotacao in await db.AnotacoesDoAluno.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(a => a.AlunoId == alunoId).ToListAsync(ct))
+        {
+            anotacao.Anonimizar();
+        }
     }
 }

@@ -1,0 +1,46 @@
+@* Foto do exercício em miniatura; tocar amplia (e tocar de novo, ou fora, fecha). Se a foto não
+   carregar (sem internet, link vencido), some sem deixar ícone quebrado. *@
+
+@if (Url is { } url && !_falhou)
+{
+    <button type="button" class="foto-miniatura @Classe" aria-label="Ver foto de @Nome" @onclick="() => _ampliada = true" @onclick:stopPropagation="true">
+        <img src="@url" alt="" loading="lazy" @onerror="() => _falhou = true" />
+    </button>
+
+    @if (_ampliada)
+    {
+        <div class="foto-fundo" role="dialog" aria-modal="true" aria-label="Foto de @Nome" @onclick="() => _ampliada = false" @onclick:stopPropagation="true">
+            <figure class="foto-ampliada">
+                <img src="@url" alt="Execução de @Nome" />
+                <figcaption>@Nome <span class="secundario">· toque para fechar</span></figcaption>
+            </figure>
+        </div>
+    }
+}
+
+@code {
+    private bool _falhou;
+    private bool _ampliada;
+
+    [Parameter]
+    public string? Url { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Nome { get; set; } = "";
+
+    /// <summary>Tamanho: "foto-pequena" (lista) ou "foto-grande" (execução).</summary>
+    [Parameter]
+    public string Classe { get; set; } = "foto-pequena";
+
+    private string? _ultimaUrl;
+
+    protected override void OnParametersSet()
+    {
+        if (_ultimaUrl != Url)
+        {
+            _ultimaUrl = Url;
+            _falhou = false;
+            _ampliada = false;
+        }
+    }
+}

@@ -74,6 +74,22 @@ public sealed class ApiVolumo
         return EnviarAsync<T>(HttpMethod.Post, caminho, new MultipartFormDataContent { { arquivo, "arquivo", nomeDoArquivo } });
     }
 
+    /// <summary>Baixa um arquivo (exportação em Excel ou PDF). Não passa pelo cache.</summary>
+    public async Task<Resultado<byte[]>> BaixarAsync(string caminho)
+    {
+        try
+        {
+            using var resposta = await _http.GetAsync(caminho);
+            return resposta.IsSuccessStatusCode
+                ? new Resultado<byte[]>(await resposta.Content.ReadAsByteArrayAsync(), null, resposta.StatusCode)
+                : new Resultado<byte[]>(null, await LerErroAsync(resposta), resposta.StatusCode);
+        }
+        catch (HttpRequestException)
+        {
+            return new Resultado<byte[]>(null, SemConexao, 0);
+        }
+    }
+
     public void LimparCache() => _cache.Clear();
 
     private async Task<Resultado<T>> EnviarAsync<T>(HttpMethod metodo, string caminho, object? corpo)

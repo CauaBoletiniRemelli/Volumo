@@ -1,0 +1,37 @@
+.numeros-do-resumo {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    margin: 0;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--linha);
+    overflow: hidden;
+}
+
+.numeros-do-resumo > div { display: grid; gap: 8px; align-content: start; padding: 14px 16px; background: var(--superficie); }
+.numeros-do-resumo dd { margin: 0; font-size: 1.3rem; white-space: nowrap; }
+
+/* O tempo total é o número que importa no fim do treino. */
+.resumo-destaque { grid-column: 1 / -1; }
+.resumo-destaque dd:first-of-type { font-size: 2.2rem; line-height: 1; color: var(--acao); }
+.numeros-do-resumo .resumo-horario { font-size: .9rem; color: var(--texto-2); }
+
+.resumo-exercicios { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.resumo-exercicio {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--superficie);
+}
+
+.resumo-exercicio-cabecalho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.resumo-series { font-size: 1.05rem; overflow-wrap: anywhere; }
+.resumo-recorde { color: var(--conquista); border-color: var(--conquista); }
+
+@media (min-width: 640px) {
+    .numeros-do-resumo { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

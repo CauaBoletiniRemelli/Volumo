@@ -106,31 +106,54 @@
     margin-top: 20px;
 }
 
-/* Espaço no fim para a barra de descanso não cobrir o botão. */
-.finalizar { margin: 28px 0 120px; padding-top: 20px; border-top: 1px solid var(--linha); }
+.finalizar { margin: 28px 0 24px; padding-top: 20px; border-top: 1px solid var(--linha); }
 
-/* Em descanso, o resto do treino escurece (continua clicável) e o relógio fica em destaque. */
-.sessao-conteudo { transition: filter .25s ease, opacity .25s ease; }
-.sessao-em-descanso { filter: brightness(.45) saturate(.6); }
+/* Observação do personal (só leitura) e a do aluno, uma abaixo da outra. */
+.observacoes { display: grid; gap: 10px; margin: 0; }
+.observacoes > div { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--linha-forte); }
+.observacoes dd { margin: 0; color: var(--texto); line-height: 1.45; overflow-wrap: anywhere; }
 
-@media (prefers-reduced-motion: reduce) {
-    .sessao-conteudo { transition: none; }
+.observacao-editor { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--linha); border-radius: var(--raio); background: var(--superficie); }
+.observacao-editor textarea {
+    width: 100%;
+    min-height: 88px;
+    padding: 12px 14px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font: 400 1rem/1.45 var(--fonte-texto);
+    resize: vertical;
+}
+.observacao-editor textarea:focus { outline: none; border-color: var(--acao); }
+
+/* ---------- Descanso ----------
+   Fundo escuro por cima de tudo (inclusive da navegação): tocar fora do relógio fecha o descanso e
+   esse toque não chega a nenhum botão de baixo. Celular: folha presa embaixo, botões de largura
+   igual; o tempo cresce com a tela. Computador: cartão centralizado na área de trabalho. */
+.descanso-fundo {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgb(5 6 8 / .72);
+    cursor: pointer;
+    animation: aparecer .2s ease;
 }
 
-/* Descanso: barra fixa acima da navegação do celular. */
 .descanso {
     position: fixed;
-    inset: auto 0 calc(61px + env(safe-area-inset-bottom)) 0;
-    z-index: 20;
+    inset: auto 0 0 0;
+    z-index: 31;
     display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 16px;
-    padding: 18px var(--gutter);
+    gap: 14px;
+    justify-items: center;
+    padding: 22px var(--gutter) calc(18px + env(safe-area-inset-bottom));
     background: var(--superficie);
     border-top: 2px solid var(--linha-forte);
-    box-shadow: 0 -16px 40px rgb(0 0 0 / .55);
+    animation: subir .2s ease;
 }
+
+.descanso-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; }
 
 /* Quanto do descanso já passou, na borda de cima. */
 .descanso-progresso {
@@ -143,26 +166,39 @@
     transition: transform 1s linear;
 }
 
-.descanso-tempo { font-size: 3.4rem; line-height: 1; color: var(--acao); }
-.descanso-acoes { display: flex; gap: 8px; }
-.descanso-acoes .botao { padding: 0 14px; white-space: nowrap; }
+.descanso-tempo { font-size: clamp(3.75rem, 24vw, 6.5rem); line-height: 1; color: var(--acao); }
 
-.resumo { max-width: 520px; }
+.descanso-acoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.descanso-acoes .botao { min-height: 56px; padding: 0 8px; white-space: nowrap; }
 
-.numeros-do-resumo {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-inline: 0;
-    margin-bottom: 0;
-    border: 1px solid var(--linha);
-    border-radius: var(--raio);
-    background: var(--superficie);
+@keyframes aparecer { from { opacity: 0; } }
+@keyframes subir { from { transform: translateY(16px); opacity: 0; } }
+
+/* Celular deitado: pouca altura, então tempo e botões lado a lado. */
+@media (max-height: 480px) and (orientation: landscape) {
+    .descanso { grid-template-columns: auto 1fr; align-items: center; gap: 10px 20px; padding-top: 14px; }
+    .descanso-topo { grid-column: 1 / -1; }
+    .descanso-tempo { font-size: 3.5rem; }
+    .descanso-acoes .botao { min-height: 48px; }
 }
 
-.numeros-do-resumo > div { display: grid; gap: 8px; padding: 16px; border-right: 1px solid var(--linha); }
-.numeros-do-resumo > div:last-child { border-right: 0; }
-.numeros-do-resumo dd { margin: 0; font-size: 1.3rem; color: var(--acao); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+    .descanso, .descanso-fundo { animation: none; }
+    .descanso-progresso { transition: none; }
+}
+
+.resumo { max-width: 640px; }
 
 @media (min-width: 960px) {
-    .descanso { inset: auto 0 0 232px; padding: 16px 56px; }
+    .descanso {
+        inset: auto 0 40px 232px;
+        width: min(440px, calc(100% - 232px - 48px));
+        margin-inline: auto;
+        padding: 26px 28px 24px;
+        border: 1px solid var(--linha-forte);
+        border-radius: var(--raio);
+        overflow: hidden;
+    }
+
+    .descanso-progresso { inset: 0 0 auto 0; }
 }

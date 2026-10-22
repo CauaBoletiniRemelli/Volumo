@@ -48,7 +48,7 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
   - Foto é dado pessoal (imagem) e às vezes de saúde (corpo): consentimento próprio, não exibir publicamente por padrão, apagar na exclusão de conta. A foto pode ficar só como prova para o sistema/personal.
   - Antifraude: foto tirada pela câmera dentro do app (não da galeria), horário do servidor, um check-in por treino/dia, e a sessão precisa ter séries registradas.
   - Academia e cidade exigem saber onde a pessoa treina: preferir que ela escolha a academia num cadastro, em vez de rastrear GPS.
-  - Começar pelo ranking **por personal** (escopo pequeno, já previsto) e só depois academia/cidade.
+  - ~~Começar pelo ranking por personal~~ **Mudança de 22/10/2026: o ranking é por círculo de amigos, não por personal.** O aluno convida quem quiser (amigos, de qualquer personal ou sem personal), e o ranking é feito entre as pessoas do círculo. Continuam valendo os cuidados acima (pontuar constância, nunca carga; participação opcional; foto não pública). Pontos a decidir: convite por link ou por e-mail, se quem é convidado precisa aceitar, se a pessoa pode estar em mais de um círculo e como sair dele. Depende do cadastro de aluno sem convite do personal (o mesmo do "Compartilhar treinos"). Academia e cidade ficam para depois, se fizer sentido.
 - Gerar treino com IA a partir de uma conversa, sempre revisável pelo personal.
 - Integração com relógios e Apple Health / Google Fit.
 - **Compartilhar treinos** (ideia de 21/10/2026): o aluno manda um link para outras pessoas seguirem o treino. Cuidados levantados:

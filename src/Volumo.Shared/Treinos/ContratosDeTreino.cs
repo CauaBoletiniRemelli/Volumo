@@ -33,6 +33,9 @@ public enum TipoDeSerie
 {
     Aquecimento = 1,
     Trabalho = 2,
+
+    /// <summary>Aproximação antes da primeira série de trabalho (carga perto da de trabalho, poucas repetições).</summary>
+    Preparatoria = 3,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<Equipamento>))]
@@ -108,10 +111,19 @@ public sealed record PlanoDeTreinoEntrada(
     [MaxLength(10)] IReadOnlyList<CardioPrescrito>? Cardios = null,
     MomentoDoCardio MomentoDoCardio = MomentoDoCardio.Depois);
 
+/// <param name="Observacao">Do personal (o aluno só lê).</param>
+/// <param name="ObservacaoDoAluno">Escrita pelo aluno; só em treino (em template é sempre nula).</param>
+/// <param name="FotoUrl">Foto do exercício, URL com prazo (algumas horas); nula quando não tem foto.</param>
 public sealed record ItemDoPlanoSaida(
-    Guid Id, int Ordem, Guid ExercicioId, string NomeDoExercicio, string? Observacao, IReadOnlyList<SeriePrescrita> Series);
+    Guid Id, int Ordem, Guid ExercicioId, string NomeDoExercicio, string? Observacao, IReadOnlyList<SeriePrescrita> Series,
+    string? ObservacaoDoAluno = null, string? FotoUrl = null);
 
-public sealed record CardioDoPlanoSaida(Guid Id, int Ordem, Guid ExercicioId, string NomeDoExercicio, int DuracaoMinutos, string? Observacao);
+public sealed record CardioDoPlanoSaida(
+    Guid Id, int Ordem, Guid ExercicioId, string NomeDoExercicio, int DuracaoMinutos, string? Observacao, string? ObservacaoDoAluno = null,
+    string? FotoUrl = null);
+
+/// <summary>Observação do aluno num exercício do treino, gravada direto (com internet). Vazio limpa.</summary>
+public sealed record ObservacaoDoAlunoEntrada([StringLength(500)] string? Texto);
 
 public sealed record TemplateResumo(Guid Id, string Nome, int QuantidadeDeExercicios);
 

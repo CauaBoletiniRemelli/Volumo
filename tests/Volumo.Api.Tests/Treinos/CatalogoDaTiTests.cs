@@ -78,6 +78,27 @@ public sealed class CatalogoDaTiTests(VolumoApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Foto_do_exercicio_vem_no_treino_para_o_aluno_e_o_personal()
+    {
+        using var client = factory.CreateHttpsClient();
+        var tokenAdmin = await AdminComDoisFatoresAsync(client, factory);
+        var (emailAluno, tokenAluno, _, tokenPersonal) = await AlunoViaConviteAsync(client, factory);
+        var comFoto = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, "/admin/exercicios", tokenAdmin, corpo: Dados($"Crucifixo {Guid.NewGuid():N}")));
+        (await EnviarArquivoAsync(client, tokenAdmin, $"/admin/exercicios/{comFoto}/foto", Png, "foto.png")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var semFoto = await ExercicioDoCatalogoAsync(client, tokenPersonal);
+        var alunoId = await IdDoUsuarioAsync(emailAluno);
+        var treinoId = await IdCriadoAsync(await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenPersonal, corpo: Plano("Treino A", [comFoto, semFoto])));
+
+        foreach (var token in new[] { tokenAluno, tokenPersonal })
+        {
+            var itens = (await GetAsync<TreinoDetalhe>(client, $"/treinos/{treinoId}", token)).Itens;
+            using var foto = await client.GetAsync(new Uri(itens.Single(i => i.ExercicioId == comFoto).FotoUrl!), Ct);
+            (await foto.Content.ReadAsByteArrayAsync(Ct)).ShouldBe(Png);
+            itens.Single(i => i.ExercicioId == semFoto).FotoUrl.ShouldBeNull();
+        }
+    }
+
+    [Fact]
     public async Task Trocar_a_foto_apaga_o_arquivo_anterior_e_remover_limpa()
     {
         using var client = factory.CreateHttpsClient();

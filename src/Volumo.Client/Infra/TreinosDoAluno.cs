@@ -31,6 +31,9 @@ public sealed class SessaoEmAndamento
     public bool? CardioAntes { get; set; }
 
     public List<CardioFeito> Cardios { get; set; } = [];
+
+    /// <summary>Observações que o aluno escreveu nesta sessão, por exercício; sobem junto com ela.</summary>
+    public List<AnotacaoRegistrada> Anotacoes { get; set; } = [];
 }
 
 /// <summary>Cardio feito na sessão: <see cref="Cardio"/> aponta para o cardio prescrito.</summary>
@@ -57,6 +60,47 @@ public sealed class TreinosDoAluno(ApiVolumo api, ArmazenamentoLocal local, Sess
 
     public Task<Carregado<TreinoDetalhe>> DetalheAsync(Guid treinoId, bool atualizar = false) =>
         CarregarAsync<TreinoDetalhe>($"treinos/{treinoId}", ChavesLocais.Treino(Usuario, treinoId), atualizar);
+
+    /// <summary>Evolução de cada exercício do treino (gráfico), com cópia no aparelho como o detalhe.</summary>
+    public Task<Carregado<EvolucaoDoTreino>> EvolucaoAsync(Guid treinoId, bool atualizar = false) =>
+        CarregarAsync<EvolucaoDoTreino>($"treinos/{treinoId}/evolucao", ChavesLocais.Evolucao(Usuario, treinoId), atualizar);
+
+    /// <summary>Treino novo finalizado: a próxima abertura do gráfico busca de novo.</summary>
+    public Task EsquecerEvolucaoAsync(Guid treinoId) => local.ApagarAsync(ChavesLocais.DataDaCopia(ChavesLocais.Evolucao(Usuario, treinoId)));
+
+    /// <summary>Grava direto na API a observação do aluno (precisa de internet) e atualiza a cópia do treino.</summary>
+    public async Task<string?> GravarObservacaoAsync(Guid treinoId, Guid exercicioId, string? texto)
+    {
+        var resultado = await api.PutAsync($"treinos/{treinoId}/exercicios/{exercicioId}/observacao-do-aluno", new ObservacaoDoAlunoEntrada(texto));
+        if (resultado.Ok)
+        {
+            await AplicarObservacoesAsync(treinoId, new Dictionary<Guid, string?> { [exercicioId] = texto });
+        }
+
+        return resultado.Erro;
+    }
+
+    /// <summary>
+    /// Põe na cópia do treino as observações feitas na sessão (que sobem junto com ela), para a tela
+    /// do treino já mostrar sem esperar a próxima busca na API.
+    /// </summary>
+    public async Task AplicarObservacoesAsync(Guid treinoId, IReadOnlyDictionary<Guid, string?> observacoes)
+    {
+        var chave = ChavesLocais.Treino(Usuario, treinoId);
+        if (observacoes.Count == 0 || await local.LerAsync<TreinoDetalhe>(chave) is not { } treino)
+        {
+            return;
+        }
+
+        string? Nova(Guid exercicioId, string? atual) =>
+            observacoes.TryGetValue(exercicioId, out var texto) ? (string.IsNullOrWhiteSpace(texto) ? null : texto.Trim()) : atual;
+
+        await local.GravarAsync(chave, treino with
+        {
+            Itens = [.. treino.Itens.Select(i => i with { ObservacaoDoAluno = Nova(i.ExercicioId, i.ObservacaoDoAluno) })],
+            Cardios = treino.Cardios is null ? null : [.. treino.Cardios.Select(c => c with { ObservacaoDoAluno = Nova(c.ExercicioId, c.ObservacaoDoAluno) })],
+        });
+    }
 
     /// <summary>Histórico guardado no aparelho (atualizado a cada download e a cada treino finalizado aqui).</summary>
     public async Task<List<SessaoResumo>> SessoesAsync() =>

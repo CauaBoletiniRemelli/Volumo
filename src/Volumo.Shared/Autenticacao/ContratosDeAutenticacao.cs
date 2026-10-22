@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Volumo.Shared.Autenticacao;
 
@@ -81,5 +82,17 @@ public sealed record ConfirmacaoDeSenha([Required, StringLength(128)] string Sen
 
 /// <param name="PrecisaConfigurarDoisFatores">Personal sem 2FA: o app deve levar à configuração antes de tudo.</param>
 /// <param name="ContaInativa">Conta pausada pela própria pessoa: o app oferece "Reativar minha conta".</param>
+/// <param name="CorpoDoDesenho">Desenho do corpo nos músculos dos exercícios; nulo em conta sem perfil (admin).</param>
 public sealed record DadosDaConta(
-    Guid Id, string Email, IReadOnlyList<string> Papeis, bool DoisFatoresAtivo, bool PrecisaConfigurarDoisFatores, bool ContaInativa);
+    Guid Id, string Email, IReadOnlyList<string> Papeis, bool DoisFatoresAtivo, bool PrecisaConfigurarDoisFatores, bool ContaInativa,
+    CorpoDoDesenho? CorpoDoDesenho = null);
+
+/// <summary>Desenho do corpo que mostra os músculos de cada exercício (preferência de exibição, não é cadastro de sexo).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<CorpoDoDesenho>))]
+public enum CorpoDoDesenho
+{
+    Masculino = 1,
+    Feminino = 2,
+}
+
+public sealed record PreferenciaDeDesenho([Required] CorpoDoDesenho CorpoDoDesenho);

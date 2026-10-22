@@ -69,3 +69,8 @@
 
     .app-conteudo { padding: 48px 56px; }
 }
+
+/* Celular estreito com cinco abas (personal que também é da TI): letras mais justas para caber. */
+@media (max-width: 400px) {
+    .app-nav ::deep .app-link { min-width: 0; padding: 0 2px; font-size: .7rem; letter-spacing: .03em; }
+}

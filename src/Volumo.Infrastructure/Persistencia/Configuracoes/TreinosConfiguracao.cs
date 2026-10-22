@@ -30,6 +30,22 @@ internal sealed class TreinoConfiguracao : IEntityTypeConfiguration<Treino>
     }
 }
 
+/// <summary>Uma anotação por treino e exercício (o app grava por cima).</summary>
+internal sealed class AnotacaoDoAlunoConfiguracao : IEntityTypeConfiguration<AnotacaoDoAluno>
+{
+    public void Configure(EntityTypeBuilder<AnotacaoDoAluno> builder)
+    {
+        builder.ToTable("AnotacoesDoAluno");
+        builder.Property(a => a.Id).ValueGeneratedNever();
+        builder.Property(a => a.Texto).HasMaxLength(AnotacaoDoAluno.TextoMaximo);
+        builder.HasOne<PerfilAluno>().WithMany().HasForeignKey(a => a.AlunoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Treino>().WithMany().HasForeignKey(a => a.TreinoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Exercicio>().WithMany().HasForeignKey(a => a.ExercicioId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(a => new { a.TreinoId, a.ExercicioId }).IsUnique();
+        builder.HasIndex(a => a.AlunoId);
+    }
+}
+
 /// <summary>
 /// Itens e séries são tipos "owned": pertencem ao treino ou ao template e não existem sozinhos.
 /// Cada dono tem as próprias tabelas, então template e treino não compartilham linhas.

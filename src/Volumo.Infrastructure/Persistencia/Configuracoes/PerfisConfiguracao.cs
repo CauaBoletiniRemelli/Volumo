@@ -16,6 +16,7 @@ internal sealed class PerfilPersonalConfiguracao : IEntityTypeConfiguration<Perf
         builder.HasQueryFilter(FiltrosDeConsulta.Ativos, p => p.InativadoEm == null);
 
         builder.Property(p => p.Nome).HasMaxLength(Perfil.NomeMaximo);
+        PerfilMapeamento.CorpoDoDesenho(builder);
         builder.Property(p => p.Cref)
             .HasConversion(cref => cref!.Valor, valor => Cref.Criar(valor))
             .HasMaxLength(Cref.TamanhoMaximo)
@@ -36,5 +37,14 @@ internal sealed class PerfilAlunoConfiguracao : IEntityTypeConfiguration<PerfilA
         builder.HasOne<Usuario>().WithOne().HasForeignKey<PerfilAluno>(p => p.Id).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(FiltrosDeConsulta.Ativos, p => p.InativadoEm == null);
         builder.Property(p => p.Nome).HasMaxLength(Perfil.NomeMaximo);
+        PerfilMapeamento.CorpoDoDesenho(builder);
     }
+}
+
+internal static class PerfilMapeamento
+{
+    /// <summary>Perfis que já existiam ficam com o desenho masculino (o padrão do domínio).</summary>
+    public static void CorpoDoDesenho<TPerfil>(EntityTypeBuilder<TPerfil> builder)
+        where TPerfil : Perfil =>
+        builder.Property(p => p.CorpoDoDesenho).HasDefaultValue(Domain.Usuarios.CorpoDoDesenho.Masculino).HasSentinel((CorpoDoDesenho)0);
 }

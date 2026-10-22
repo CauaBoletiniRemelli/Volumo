@@ -24,6 +24,9 @@ builder.Services.AddSingleton(sp => new ApiVolumo(
     sp.GetRequiredService<SessaoDoUsuario>()));
 
 builder.Services.AddSingleton<SincronizacaoDeSessoes>();
+
+// Arquivos do próprio site (desenhos do corpo), sem token: não passam pela API.
+builder.Services.AddSingleton(new DesenhosDoCorpo(new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) }));
 builder.Services.AddSingleton<TreinosDoAluno>();
 
 builder.Services.AddAuthorizationCore();

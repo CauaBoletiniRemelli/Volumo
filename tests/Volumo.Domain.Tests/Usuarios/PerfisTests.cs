@@ -15,6 +15,20 @@ public sealed class PerfisTests
         Cref.Criar(entrada).Valor.ShouldBe(esperado);
     }
 
+    [Fact]
+    public void Desenho_do_corpo_comeca_masculino_pode_mudar_e_volta_ao_padrao_na_anonimizacao()
+    {
+        var perfil = PerfilAluno.Criar(Dados.NovoId(), "Ana");
+        perfil.CorpoDoDesenho.ShouldBe(CorpoDoDesenho.Masculino);
+
+        perfil.DefinirCorpoDoDesenho(CorpoDoDesenho.Feminino);
+        perfil.CorpoDoDesenho.ShouldBe(CorpoDoDesenho.Feminino);
+        Should.Throw<RegraDeNegocioException>(() => perfil.DefinirCorpoDoDesenho((CorpoDoDesenho)9));
+
+        perfil.Anonimizar(Dados.Agora);
+        perfil.CorpoDoDesenho.ShouldBe(CorpoDoDesenho.Masculino);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

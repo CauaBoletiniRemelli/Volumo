@@ -55,11 +55,11 @@
                 @foreach (var sessao in _sessoes.Take(5))
                 {
                     <li>
-                        <span>
+                        <a class="link-largo" href="historico/@sessao.Id">
                             <span class="treino-nome">@(sessao.NomeDoTreino ?? "Treino livre")</span>
                             <span class="secundario numero"> · @Rotulos.Data(sessao.IniciadaEm)</span>
-                        </span>
-                        <span class="secundario"><span class="numero">@sessao.QuantidadeDeSeries</span> @Rotulos.Plural(sessao.QuantidadeDeSeries, "série", "séries") · <span class="numero">@Rotulos.Kg(sessao.VolumeKg)</span> kg@(sessao.MinutosDeCardio > 0 ? $" · {sessao.MinutosDeCardio} min de cardio" : null)</span>
+                        </a>
+                        <span class="secundario">@Rotulos.NumerosDaSessao(sessao)</span>
                     </li>
                 }
             </ul>

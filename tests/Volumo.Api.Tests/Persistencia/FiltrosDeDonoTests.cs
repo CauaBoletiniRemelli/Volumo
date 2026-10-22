@@ -28,6 +28,7 @@ public sealed class FiltrosDeDonoTests
         (await db.Treinos.Select(t => t.Id).ToListAsync(Ct)).ShouldBe([c.TreinoX]);
         (await db.SessoesTreino.Select(s => s.Id).ToListAsync(Ct)).ShouldBe([c.SessaoX]);
         (await db.RegistrosSerie.Select(r => r.SessaoId).Distinct().ToListAsync(Ct)).ShouldBe([c.SessaoX]);
+        (await db.AnotacoesDoAluno.Select(a => a.Id).ToListAsync(Ct)).ShouldBe([c.AnotacaoX]);
         (await db.PerfisAluno.Select(a => a.Id).ToListAsync(Ct)).ShouldBe([c.AlunoX]);
         (await db.PerfisPersonal.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PersonalA]);
         (await db.ConvitesAluno.Select(cv => cv.Id).ToListAsync(Ct)).ShouldBe([c.ConviteA]);
@@ -58,6 +59,7 @@ public sealed class FiltrosDeDonoTests
 
         (await db.Treinos.Select(t => t.Id).ToListAsync(Ct)).ShouldBe([c.TreinoX]);
         (await db.SessoesTreino.Select(s => s.Id).ToListAsync(Ct)).ShouldBe([c.SessaoX]);
+        (await db.AnotacoesDoAluno.Select(a => a.Id).ToListAsync(Ct)).ShouldBe([c.AnotacaoX]);
         (await db.TemplatesTreino.AnyAsync(Ct)).ShouldBeFalse();
         (await db.PerfisPersonal.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PersonalA]);
         (await db.PerfisAluno.Select(a => a.Id).ToListAsync(Ct)).ShouldBe([c.AlunoX]);
@@ -107,7 +109,7 @@ public sealed class FiltrosDeDonoTests
     private sealed record Ids(
         Guid PersonalA, Guid PersonalB, Guid AlunoX, Guid AlunoY, Guid AlunoZ,
         Guid ExercicioDoCatalogo, Guid ExercicioDeA, Guid ExercicioDeB,
-        Guid TemplateA, Guid TreinoX, Guid TreinoY, Guid TreinoZ, Guid SessaoX, Guid ConviteA);
+        Guid TemplateA, Guid TreinoX, Guid TreinoY, Guid TreinoZ, Guid SessaoX, Guid ConviteA, Guid AnotacaoX);
 
     private static async Task<Ids> CriarCenarioAsync()
     {
@@ -137,7 +139,10 @@ public sealed class FiltrosDeDonoTests
         var (conviteA, _) = ConviteAluno.Criar(Guid.CreateVersion7(), a.Id, "convidado-a@volumo.test", Agora);
         var (conviteB, _) = ConviteAluno.Criar(Guid.CreateVersion7(), b.Id, "convidado-b@volumo.test", Agora);
 
-        db.AddRange(exA, exB, vinculoZ, templateA, templateB, treinoX, treinoY, treinoZ, sessaoX, sessaoY, conviteA, conviteB);
+        var anotacaoX = AnotacaoDoAluno.Criar(Guid.CreateVersion7(), x.Id, treinoX.Id, exA.Id, "Banco na 3", Agora);
+        var anotacaoY = AnotacaoDoAluno.Criar(Guid.CreateVersion7(), y.Id, treinoY.Id, catalogo.Id, "Pegada aberta", Agora);
+
+        db.AddRange(exA, exB, vinculoZ, templateA, templateB, treinoX, treinoY, treinoZ, sessaoX, sessaoY, conviteA, conviteB, anotacaoX, anotacaoY);
         db.AddRange(
             VinculoPersonalAluno.Criar(Guid.CreateVersion7(), a.Id, x.Id, Agora.AddMonths(-2)),
             VinculoPersonalAluno.Criar(Guid.CreateVersion7(), b.Id, y.Id, Agora.AddMonths(-2)));
@@ -145,6 +150,6 @@ public sealed class FiltrosDeDonoTests
 
         return new Ids(
             a.Id, b.Id, x.Id, y.Id, z.Id, catalogo.Id, exA.Id, exB.Id,
-            templateA.Id, treinoX.Id, treinoY.Id, treinoZ.Id, sessaoX.Id, conviteA.Id);
+            templateA.Id, treinoX.Id, treinoY.Id, treinoZ.Id, sessaoX.Id, conviteA.Id, anotacaoX.Id);
     }
 }

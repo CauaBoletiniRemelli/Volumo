@@ -1,0 +1,57 @@
+@* Resumo geral de um treino feito: tempo, números do dia e o que foi feito em cada exercício.
+   Com a última vez disponível, compara volume e marca carga nova (em laranja, com texto). *@
+
+<div class="resumo-sessao pilha" style="--espaco: 20px">
+    <dl class="numeros-do-resumo">
+        <div class="resumo-destaque">
+            <dt class="rotulo">Tempo total</dt>
+            <dd class="numero">@(Resumo.Fim is { } fim ? Rotulos.Duracao(fim - Resumo.Inicio) : "—")</dd>
+            <dd class="secundario numero resumo-horario">@Rotulos.Data(Resumo.Inicio), @Rotulos.Hora(Resumo.Inicio)@(Resumo.Fim is { } f ? $" às {Rotulos.Hora(f)}" : null)</dd>
+        </div>
+        <div><dt class="rotulo">Exercícios</dt><dd class="numero">@Resumo.Exercicios.Count@(Resumo.ExerciciosPrevistos is { } previstos ? $"/{previstos}" : null)</dd></div>
+        <div><dt class="rotulo">Séries</dt><dd class="numero">@Resumo.Series</dd></div>
+        <div><dt class="rotulo">Repetições</dt><dd class="numero">@Resumo.Repeticoes</dd></div>
+        <div><dt class="rotulo">Cardio</dt><dd class="numero">@(Resumo.Cardios.Count > 0 ? $"{Resumo.MinutosDeCardio} min" : "—")</dd></div>
+    </dl>
+
+    @if (Resumo.Exercicios.Count > 0)
+    {
+        <ol class="resumo-exercicios">
+            @foreach (var exercicio in Resumo.Exercicios)
+            {
+                <li class="resumo-exercicio">
+                    <div class="resumo-exercicio-cabecalho">
+                        <span class="treino-nome">@exercicio.Nome</span>
+                        @if (exercicio.SubiuCarga)
+                        {
+                            <span class="etiqueta resumo-recorde">Carga nova</span>
+                        }
+                    </div>
+                    <p class="numero resumo-series">@string.Join("  ·  ", exercicio.Series.Select(s => $"{Rotulos.Kg(s.CargaKg)}×{s.Repeticoes}"))</p>
+                    @* Comparação só dentro do mesmo exercício: kg somados de exercícios diferentes não dizem nada. *@
+                    @if (exercicio.VariacaoDeVolume is { } variacao)
+                    {
+                        <p class="secundario">
+                            <span class="numero">@(variacao > 0 ? "+" : null)@variacao%</span> de volume (carga × repetições) em relação à última vez
+                        </p>
+                    }
+                </li>
+            }
+        </ol>
+    }
+
+    @if (Resumo.Cardios.Count > 0)
+    {
+        <ul class="lista painel">
+            @foreach (var cardio in Resumo.Cardios)
+            {
+                <li><span class="treino-nome">@cardio.Nome</span><span class="secundario numero">@cardio.DuracaoMinutos min</span></li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ResumoDeSessao Resumo { get; set; } = null!;
+}

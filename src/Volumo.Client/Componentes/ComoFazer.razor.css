@@ -1,26 +1,6 @@
-.como-fazer { display: grid; gap: 10px; }
-
-/* Destaque leve: borda e ícone na cor de ação, sem competir com o botão "Feito". */
-.como-fazer-botao {
-    justify-self: start;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 0 14px 0 10px;
-    border: 1px solid var(--linha-forte);
-    border-radius: var(--raio);
-    background: var(--superficie);
-    color: var(--texto);
-    font: 600 .95rem/1 var(--fonte-texto);
-    cursor: pointer;
-    touch-action: manipulation;
-}
-
-.como-fazer-botao svg { flex: none; color: var(--acao); }
-.como-fazer-botao:hover { border-color: var(--acao); }
-.como-fazer-botao:focus-visible { outline: 2px solid var(--acao); outline-offset: 2px; }
-.como-fazer-botao[aria-expanded="true"] svg { color: var(--texto-2); }
+/* Some como caixa: o botão e o conteúdo entram direto na linha de ferramentas da tela do treino
+   (.ferramentas, em app.css), alinhados com os outros botões; o conteúdo aberto cai para baixo deles. */
+.como-fazer { display: contents; }
 
 .como-fazer-corpo {
     padding: 14px;

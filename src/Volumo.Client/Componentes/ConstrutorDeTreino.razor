@@ -54,6 +54,7 @@
                                     }
                                 </span>
                             </button>
+                            <FotoDoExercicio Url="@item.FotoUrl" Nome="@item.Nome" />
                             <div class="item-acoes">
                                 <button type="button" class="botao-icone" title="Subir" aria-label="Subir @item.Nome" disabled="@(indice == 0)" @onclick="() => Mover(_itens, indice, -1)">↑</button>
                                 <button type="button" class="botao-icone" title="Descer" aria-label="Descer @item.Nome" disabled="@(indice == _itens.Count - 1)" @onclick="() => Mover(_itens, indice, 1)">↓</button>
@@ -83,6 +84,7 @@
                                                 <select aria-label="Tipo da série @(indiceSerie + 1)" @bind="serie.Tipo">
                                                     <option value="@TipoDeSerie.Trabalho">Trabalho</option>
                                                     <option value="@TipoDeSerie.Aquecimento">Aquecimento</option>
+                                                    <option value="@TipoDeSerie.Preparatoria">Preparatória</option>
                                                 </select>
                                             </span>
                                             <span class="serie-reps" role="cell">
@@ -110,6 +112,11 @@
                                         <input id="obs-@indice" maxlength="500" placeholder="Cadência, pegada, ajuste do aparelho..." @bind="item.Observacao" />
                                     </div>
                                 </div>
+                                @if (!string.IsNullOrWhiteSpace(item.ObservacaoDoAluno))
+                                {
+                                    @* Escrita pelo aluno: o personal só lê (fica guardada à parte e não muda ao salvar o treino). *@
+                                    <p class="campo-ajuda"><span class="rotulo">Anotação do aluno</span> @item.ObservacaoDoAluno</p>
+                                }
                             </div>
                         }
                     </li>
@@ -159,6 +166,7 @@
                         <div class="item-cabecalho">
                             <span class="item-ordem numero">@(indice + 1)</span>
                             <h3 class="item-nome item-titulo">@cardio.Nome</h3>
+                            <FotoDoExercicio Url="@cardio.FotoUrl" Nome="@cardio.Nome" />
                             <div class="item-acoes">
                                 <button type="button" class="botao-icone" title="Subir" aria-label="Subir @cardio.Nome" disabled="@(indice == 0)" @onclick="() => Mover(_cardios, indice, -1)">↑</button>
                                 <button type="button" class="botao-icone" title="Descer" aria-label="Descer @cardio.Nome" disabled="@(indice == _cardios.Count - 1)" @onclick="() => Mover(_cardios, indice, 1)">↓</button>
@@ -268,6 +276,8 @@
             _itens.Add(new ItemEditavel(item.ExercicioId, item.NomeDoExercicio)
             {
                 Observacao = item.Observacao,
+                ObservacaoDoAluno = item.ObservacaoDoAluno,
+                FotoUrl = item.FotoUrl,
                 Series = [.. item.Series.Select(SerieEditavel.De)],
                 Expandido = itens.Count == 1,
             });
@@ -275,7 +285,7 @@
 
         foreach (var cardio in CardiosIniciais?.OrderBy(c => c.Ordem) ?? Enumerable.Empty<CardioDoPlanoSaida>())
         {
-            _cardios.Add(new CardioEditavel(cardio.ExercicioId, cardio.NomeDoExercicio) { DuracaoMinutos = cardio.DuracaoMinutos, Observacao = cardio.Observacao });
+            _cardios.Add(new CardioEditavel(cardio.ExercicioId, cardio.NomeDoExercicio) { DuracaoMinutos = cardio.DuracaoMinutos, Observacao = cardio.Observacao, FotoUrl = cardio.FotoUrl });
         }
     }
 
@@ -292,6 +302,7 @@
         _itens.ForEach(i => i.Expandido = false);
         _itens.Add(new ItemEditavel(exercicio.Id, exercicio.Nome)
         {
+            FotoUrl = exercicio.FotoUrl,
             Series = [SerieEditavel.Padrao(), SerieEditavel.Padrao(), SerieEditavel.Padrao()],
             Expandido = true,
         });
@@ -301,7 +312,7 @@
 
     private void AdicionarCardio(ExercicioResumo exercicio)
     {
-        _cardios.Add(new CardioEditavel(exercicio.Id, exercicio.Nome));
+        _cardios.Add(new CardioEditavel(exercicio.Id, exercicio.Nome) { FotoUrl = exercicio.FotoUrl });
         _buscandoCardio = false;
         _erroLocal = null;
     }
@@ -435,6 +446,12 @@
 
         public string? Observacao { get; set; }
 
+        /// <summary>Só leitura: anotação do aluno neste exercício.</summary>
+        public string? ObservacaoDoAluno { get; init; }
+
+        /// <summary>Foto do exercício (só para ver; não vai no plano salvo).</summary>
+        public string? FotoUrl { get; init; }
+
         public List<SerieEditavel> Series { get; init; } = [];
 
         public bool Expandido { get; set; }
@@ -449,6 +466,8 @@
         public int DuracaoMinutos { get; set; } = 20;
 
         public string? Observacao { get; set; }
+
+        public string? FotoUrl { get; init; }
     }
 
     private sealed class SerieEditavel

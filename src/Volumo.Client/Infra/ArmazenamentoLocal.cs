@@ -79,6 +79,8 @@ public static class ChavesLocais
 
     public static string Sessoes(Guid usuarioId) => $"{Cache(usuarioId)}sessoes";
 
+    public static string Evolucao(Guid usuarioId, Guid treinoId) => $"{Cache(usuarioId)}evolucao:{treinoId}";
+
     /// <summary>Quando a cópia guardada em <paramref name="chave"/> veio da API.</summary>
     public static string DataDaCopia(string chave) => $"{chave}:em";
 

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Volumo.Api.Auth;
+using Volumo.Api.Exportacao;
 using Volumo.Api.Sessoes;
 using Volumo.Infrastructure.Persistencia;
 using Volumo.Shared.Sessoes;
@@ -13,7 +14,7 @@ namespace Volumo.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("sessoes")]
-public sealed class SessoesController(VolumoDbContext db, SessionSynchronizer synchronizer, SessionQueries queries) : ControllerBase
+public sealed class SessoesController(VolumoDbContext db, SessionSynchronizer synchronizer, SessionQueries queries, WorkoutExporter exporter) : ControllerBase
 {
     /// <summary>
     /// Recebe um lote de sessões. Responde 200 com o resultado de cada uma: "Sincronizada" (gravada ou
@@ -45,4 +46,18 @@ public sealed class SessoesController(VolumoDbContext db, SessionSynchronizer sy
     [Authorize(Policy = Policies.ContaAtiva)]
     public async Task<ActionResult<SessaoDetalhe>> Get(Guid id, CancellationToken ct) =>
         await queries.DetailAsync(id, ct) is { } detalhe ? detalhe : NotFound();
+
+    /// <summary>O treino do dia (uma sessão) em Excel ou PDF. <paramref name="fuso"/> como em <c>/treinos/{id}/exportar</c>.</summary>
+    [HttpGet("{id:guid}/exportar")]
+    [Authorize(Policy = Policies.ContaAtiva)]
+    public async Task<IActionResult> Export(Guid id, [FromQuery] FormatoDeExportacao formato, [FromQuery] int? fuso, CancellationToken ct)
+    {
+        if (await queries.DetailAsync(id, ct) is not { } detalhe)
+        {
+            return NotFound();
+        }
+
+        var arquivo = exporter.Session(detalhe, formato, WorkoutExportTimeZone.From(fuso));
+        return File(arquivo.Content, arquivo.ContentType, arquivo.FileName);
+    }
 }

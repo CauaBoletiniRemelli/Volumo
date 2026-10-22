@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Volumo.Api.Treinos;
 using Volumo.Domain.Comum;
 using Volumo.Domain.Sessoes;
 using Volumo.Infrastructure.Persistencia;
@@ -11,7 +12,7 @@ namespace Volumo.Api.Sessoes;
 /// recusada não impede as outras. Reenviar a mesma sessão não duplica nada, porque os Ids vêm do app
 /// e o domínio ignora séries já registradas.
 /// </summary>
-public sealed class SessionSynchronizer(VolumoDbContext db, TimeProvider clock)
+public sealed class SessionSynchronizer(VolumoDbContext db, StudentNotes notes, TimeProvider clock)
 {
     /// <summary>Folga para relógio de celular um pouco adiantado.</summary>
     public static readonly TimeSpan FutureTolerance = TimeSpan.FromMinutes(5);
@@ -49,8 +50,10 @@ public sealed class SessionSynchronizer(VolumoDbContext db, TimeProvider clock)
     private async Task<ResultadoDaSessao> TrySyncAsync(Guid alunoId, SessaoRegistrada dados, CancellationToken ct)
     {
         var cardios = dados.Cardios ?? [];
+        var anotacoes = dados.Anotacoes ?? [];
         var limit = clock.GetUtcNow() + FutureTolerance;
-        if (dados.IniciadaEm > limit || dados.FinalizadaEm > limit || dados.Series.Any(s => s.RealizadaEm > limit) || cardios.Any(c => c.RealizadoEm > limit))
+        if (dados.IniciadaEm > limit || dados.FinalizadaEm > limit || dados.Series.Any(s => s.RealizadaEm > limit) || cardios.Any(c => c.RealizadoEm > limit)
+            || anotacoes.Any(a => a.AtualizadaEm > limit))
         {
             return Rejected(dados.Id, "Horário no futuro. Confira a data e a hora do aparelho.");
         }
@@ -101,6 +104,12 @@ public sealed class SessionSynchronizer(VolumoDbContext db, TimeProvider clock)
         if (dados.FinalizadaEm is { } fim)
         {
             sessao.Finalizar(fim);
+        }
+
+        // O treino já foi conferido acima; sem treino (sessão livre), não há onde guardar a observação.
+        if (dados.TreinoId is { } treinoDasAnotacoes && anotacoes.Count > 0)
+        {
+            await notes.ApplyAsync(alunoId, treinoDasAnotacoes, anotacoes.Select(a => new StudentNote(a.ExercicioId, a.Texto, a.AtualizadaEm)), ct);
         }
 
         await db.SaveChangesAsync(ct);

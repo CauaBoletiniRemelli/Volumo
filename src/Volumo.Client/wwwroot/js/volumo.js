@@ -52,6 +52,18 @@ window.volumo = {
         return navigator.clipboard.writeText(texto);
     },
 
+    // Salva no aparelho um arquivo que o Blazor baixou da API (o .NET manda o byte[] como Uint8Array).
+    baixarArquivo(nome, tipo, bytes) {
+        const url = URL.createObjectURL(new Blob([bytes], { type: tipo }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nome;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
+
     // Dados de treino guardados no aparelho (IndexedDB) para usar sem internet. Só JSON de
     // treinos e sessões, nunca token. Chaves prefixadas pelo id do usuário.
     local: {

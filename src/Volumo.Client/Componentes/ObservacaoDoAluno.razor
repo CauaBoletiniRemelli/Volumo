@@ -1,0 +1,71 @@
+@* Observação do aluno num exercício, na tela do treino: mostra, edita e grava direto na API (precisa
+   de internet; durante o treino, a anotação vai junto com a sessão e funciona offline). *@
+@inject TreinosDoAluno Treinos
+
+@if (_editando)
+{
+    <div class="observacao-aluno pilha" style="--espaco: 10px">
+        <label class="campo">
+            <span class="rotulo">Sua observação</span>
+            <textarea class="observacao-aluno-texto" rows="3" maxlength="500" placeholder="Banco na posição 3, pegada mais fechada..." @bind="_texto" @bind:event="oninput"></textarea>
+        </label>
+        @if (_erro is not null)
+        {
+            <p class="campo-erro" role="alert">@_erro</p>
+        }
+        <div class="linha-de-botoes">
+            <button type="button" class="botao botao-principal" disabled="@_salvando" @onclick="SalvarAsync">Salvar</button>
+            <button type="button" class="botao" disabled="@_salvando" @onclick="() => _editando = false">Cancelar</button>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(Texto))
+{
+    <p class="observacao-aluno-linha">
+        <span><span class="rotulo">Sua observação</span> @Texto</span>
+        <button type="button" class="botao botao-texto" @onclick="Editar">Editar</button>
+    </p>
+}
+else
+{
+    <button type="button" class="botao botao-texto observacao-aluno-anotar" @onclick="Editar">+ Anotar neste exercício</button>
+}
+
+@code {
+    private bool _editando;
+    private bool _salvando;
+    private string? _texto;
+    private string? _erro;
+
+    [Parameter, EditorRequired]
+    public Guid TreinoId { get; set; }
+
+    [Parameter, EditorRequired]
+    public Guid ExercicioId { get; set; }
+
+    [Parameter]
+    public string? Texto { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> TextoChanged { get; set; }
+
+    private void Editar()
+    {
+        _texto = Texto;
+        _erro = null;
+        _editando = true;
+    }
+
+    private async Task SalvarAsync()
+    {
+        _salvando = true;
+        var texto = string.IsNullOrWhiteSpace(_texto) ? null : _texto.Trim();
+        _erro = await Treinos.GravarObservacaoAsync(TreinoId, ExercicioId, texto);
+        _salvando = false;
+        if (_erro is null)
+        {
+            _editando = false;
+            await TextoChanged.InvokeAsync(texto);
+        }
+    }
+}

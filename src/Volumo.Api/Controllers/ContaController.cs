@@ -7,6 +7,8 @@ using Volumo.Domain.Usuarios;
 using Volumo.Infrastructure.Identity;
 using Volumo.Infrastructure.Persistencia;
 using Volumo.Shared.Autenticacao;
+using CorpoDoDesenho = Volumo.Shared.Autenticacao.CorpoDoDesenho;
+using DomainBody = Volumo.Domain.Usuarios.CorpoDoDesenho;
 
 namespace Volumo.Api.Controllers;
 
@@ -37,8 +39,29 @@ public sealed class ContaController(
             [.. papeis],
             usuario.TwoFactorEnabled,
             PrecisaConfigurarDoisFatores: papeis.Contains(Papeis.Personal) && !usuario.TwoFactorEnabled,
-            ContaInativa: await sessions.IsInactiveAsync(usuario.Id, ct));
+            ContaInativa: await sessions.IsInactiveAsync(usuario.Id, ct),
+            CorpoDoDesenho: await ProfileAsync(usuario.Id, ct) is { } perfil ? Enum.Parse<CorpoDoDesenho>(perfil.CorpoDoDesenho.ToString()) : null);
     }
+
+    /// <summary>Escolhe o desenho do corpo (masculino ou feminino) que mostra os músculos dos exercícios.</summary>
+    [HttpPut("desenho-do-corpo")]
+    [Authorize(Policy = Policies.ContaAtiva)]
+    public async Task<IActionResult> SetBodyDrawing(PreferenciaDeDesenho request, CancellationToken ct)
+    {
+        if (await ProfileAsync(User.UsuarioId()!.Value, ct) is not { } perfil)
+        {
+            return NotFound();
+        }
+
+        perfil.DefinirCorpoDoDesenho(Enum.IsDefined(request.CorpoDoDesenho) ? Enum.Parse<DomainBody>(request.CorpoDoDesenho.ToString()) : (DomainBody)0);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>Perfil de aluno ou de personal da conta, inclusive pausado (o "GET /conta" funciona com a conta pausada).</summary>
+    private async Task<Perfil?> ProfileAsync(Guid usuarioId, CancellationToken ct) =>
+        (Perfil?)await db.PerfisAluno.IgnoreQueryFilters([FiltrosDeConsulta.Ativos]).SingleOrDefaultAsync(p => p.Id == usuarioId, ct)
+        ?? await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos]).SingleOrDefaultAsync(p => p.Id == usuarioId, ct);
 
     /// <summary>
     /// Pausa a conta (nada é apagado). Pede a senha de novo e encerra todas as sessões. Para voltar,

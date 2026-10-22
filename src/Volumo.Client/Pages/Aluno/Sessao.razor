@@ -12,21 +12,21 @@
 @if (_resumo is { } resumo)
 {
     <section class="pilha resumo" style="--espaco: 20px">
-        <p class="rotulo">Treino finalizado</p>
-        <h1>@_treino!.Nome</h1>
-        <dl class="numeros-do-resumo">
-            <div><dt class="rotulo">Séries</dt><dd class="numero">@resumo.Series</dd></div>
-            <div><dt class="rotulo">Volume</dt><dd class="numero">@Rotulos.Kg(resumo.VolumeKg) kg</dd></div>
-            <div><dt class="rotulo">Duração</dt><dd class="numero">@resumo.Minutos min</dd></div>
-        </dl>
-        @if (resumo.MinutosDeCardio > 0)
-        {
-            <p class="secundario">Cardio: <span class="numero">@resumo.MinutosDeCardio min</span></p>
-        }
+        <header class="pilha" style="--espaco: 10px">
+            <p class="rotulo">Treino finalizado</p>
+            <h1>@_treino!.Nome</h1>
+        </header>
+        <ResumoDaSessao Resumo="resumo" />
         <IndicadorDeSincronizacao />
-        @if (Sincronizacao.Pendentes == 0 && Sincronizacao.Recusadas.Count == 0)
+        @if (Enviado)
         {
             <p class="aviso aviso-ok">Enviado. Seu personal já consegue ver.</p>
+            <ExportarArquivo Titulo="Exportar o treino de hoje" Caminho="@($"sessoes/{_idFinalizada}/exportar")"
+                             NomeDoArquivo="@($"{_treino.Nome} {resumo.Inicio.ToLocalTime():dd-MM-yyyy}")" />
+        }
+        else
+        {
+            <p class="secundario">A exportação em Excel ou PDF fica disponível assim que o treino for enviado.</p>
         }
         <a class="botao botao-principal botao-largo botao-grande" href="treinos">Voltar aos treinos</a>
     </section>
@@ -44,9 +44,11 @@ else if (_treino is null || _sessao is null)
 else
 {
     var etapa = _etapas[_sessao.ExercicioAtual];
+    var exercicioId = ExercicioDa(etapa);
+    var doPersonal = etapa.Cardio ? _cardios[etapa.Indice].Observacao : _itens[etapa.Indice].Observacao;
+    var minha = MinhaObservacao(etapa);
 
-    @* Durante o descanso o treino fica mais escuro (continua usável) e o relógio ganha o destaque. *@
-    <div class="sessao-conteudo @(_sessao.DescansoAte is not null ? "sessao-em-descanso" : null)">
+    <div class="sessao-conteudo" inert="@(_sessao.DescansoAte is not null)">
     <header class="sessao-cabecalho">
         <p class="rotulo"><a href="treinos/@TreinoId">@_treino.Nome</a> · @(etapa.Cardio ? "cardio" : "exercício") <span class="numero">@(_sessao.ExercicioAtual + 1)</span> de <span class="numero">@_etapas.Count</span></p>
         <nav class="mapa" aria-label="Etapas do treino">
@@ -64,27 +66,73 @@ else
         {
             var cardio = _cardios[etapa.Indice];
             <p class="rotulo etapa-tipo">Cardio</p>
-            <h1 class="exercicio-nome">@cardio.NomeDoExercicio</h1>
-            <p class="secundario">
-                meta <span class="numero">@cardio.DuracaoMinutos min</span>@(string.IsNullOrWhiteSpace(cardio.Observacao) ? null : $" · {cardio.Observacao}")
-            </p>
-            <ComoFazer ExercicioId="cardio.ExercicioId" />
+            <div class="com-foto">
+                <FotoDoExercicio Url="@cardio.FotoUrl" Nome="@cardio.NomeDoExercicio" Classe="foto-grande" />
+                <h1 class="exercicio-nome">@cardio.NomeDoExercicio</h1>
+            </div>
+            <p class="secundario">meta <span class="numero">@cardio.DuracaoMinutos min</span></p>
         }
         else
         {
-            var item = _itens[etapa.Indice];
-            <h1 class="exercicio-nome">@item.NomeDoExercicio</h1>
-            @if (!string.IsNullOrWhiteSpace(item.Observacao))
-            {
-                <p class="secundario">@item.Observacao</p>
-            }
-            <ComoFazer ExercicioId="item.ExercicioId" />
+            <div class="com-foto">
+                <FotoDoExercicio Url="@_itens[etapa.Indice].FotoUrl" Nome="@_itens[etapa.Indice].NomeDoExercicio" Classe="foto-grande" />
+                <h1 class="exercicio-nome">@_itens[etapa.Indice].NomeDoExercicio</h1>
+            </div>
         }
+
+        @if (!string.IsNullOrWhiteSpace(doPersonal) || (!string.IsNullOrWhiteSpace(minha) && !_editandoObservacao))
+        {
+            <dl class="observacoes">
+                @if (!string.IsNullOrWhiteSpace(doPersonal))
+                {
+                    <div><dt class="rotulo">Personal</dt><dd>@doPersonal</dd></div>
+                }
+                @if (!string.IsNullOrWhiteSpace(minha) && !_editandoObservacao)
+                {
+                    <div><dt class="rotulo">Sua observação</dt><dd>@minha</dd></div>
+                }
+            </dl>
+        }
+
+        @* Ferramentas do exercício, todas do mesmo tamanho e numa linha só; o conteúdo aberto aparece abaixo delas. *@
+        <div class="ferramentas">
+            <ComoFazer ExercicioId="exercicioId" />
+            <button type="button" class="ferramenta" aria-expanded="@(_editandoObservacao ? "true" : "false")" @onclick="AlternarObservacao">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" />
+                </svg>
+                <span>Anotação</span>
+            </button>
+            <button type="button" class="ferramenta" @onclick="() => IniciarDescansoAsync(DescansoSugerido(etapa))">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5M9.5 2.5h5" />
+                </svg>
+                <span>Descansar <span class="numero">@Formatar(TimeSpan.FromSeconds(DescansoSugerido(etapa)))</span></span>
+            </button>
+
+            @if (_editandoObservacao)
+            {
+                <div class="ferramenta-corpo observacao-editor">
+                    <label class="campo">
+                        <span class="rotulo">Sua observação</span>
+                        <textarea rows="3" maxlength="500" placeholder="Banco na posição 3, pegada mais fechada..." @bind="_textoObservacao" @bind:event="oninput"></textarea>
+                        <span class="campo-ajuda">Só você e seu personal veem. A observação do personal continua igual.</span>
+                    </label>
+                    <div class="linha-de-botoes">
+                        <button type="button" class="botao botao-principal" @onclick="() => SalvarObservacaoAsync(exercicioId)">Salvar</button>
+                        <button type="button" class="botao" @onclick="AlternarObservacao">Cancelar</button>
+                        @if (!string.IsNullOrWhiteSpace(minha))
+                        {
+                            <button type="button" class="botao botao-texto texto-erro" @onclick="() => ApagarObservacaoAsync(exercicioId)">Apagar a minha</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
     </header>
 
     @if (etapa.Cardio)
     {
-        var cardio = _cardios[etapa.Indice];
         var feito = FeitoDoCardio(etapa.Indice);
         if (feito is not null)
         {
@@ -145,7 +193,7 @@ else
                                 {
                                     <span class="numero"> · @Rotulos.Kg(carga) kg</span>
                                 }
-                                @(prescrita.Tipo == TipoDeSerie.Aquecimento ? " · aquecimento" : null)
+                                @Rotulos.Marcador(prescrita.Tipo)
                             </span>
                         }
                     </div>
@@ -225,23 +273,33 @@ else
     @if (_sessao.DescansoAte is { } fim)
     {
         var restante = fim - DateTimeOffset.UtcNow;
-        <div class="descanso" role="timer" aria-live="off">
+        @* Fundo por cima de tudo (inclusive da barra do app): o primeiro toque fora do relógio só fecha o
+           descanso; nada embaixo recebe o clique. Fechar = encerrar o descanso, como "Pular". *@
+        <div class="descanso-fundo" @onclick="PularDescansoAsync"></div>
+        <div class="descanso" role="dialog" aria-modal="true" aria-labelledby="descanso-titulo">
             @if (_sessao.DescansoDesde is { } inicio && fim > inicio)
             {
                 var decorrido = Math.Clamp((DateTimeOffset.UtcNow - inicio) / (fim - inicio), 0, 1);
                 <span class="descanso-progresso" style="--decorrido: @decorrido.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)" aria-hidden="true"></span>
             }
-            <span class="rotulo">Descanso</span>
-            <span class="descanso-tempo numero">@Formatar(restante)</span>
+            <div class="descanso-topo">
+                <span class="rotulo" id="descanso-titulo">Descanso</span>
+                <span class="campo-ajuda">Toque fora para fechar</span>
+            </div>
+            <span class="descanso-tempo numero" role="timer" aria-live="off">@Formatar(restante)</span>
             <div class="descanso-acoes">
-                <button type="button" class="botao" @onclick="() => SomarDescansoAsync(15)">+15 s</button>
-                <button type="button" class="botao" @onclick="PularDescansoAsync">Pular</button>
+                <button type="button" class="botao" aria-label="Menos 15 segundos" @onclick="() => SomarDescansoAsync(-15)">−15 s</button>
+                <button type="button" class="botao" aria-label="Mais 15 segundos" @onclick="() => SomarDescansoAsync(15)">+15 s</button>
+                <button type="button" class="botao botao-principal" @onclick="PularDescansoAsync">Pular</button>
             </div>
         </div>
     }
 }
 
 @code {
+    /// <summary>Descanso do botão "Descansar" quando a série não tem descanso prescrito.</summary>
+    private const int DescansoPadrao = 90;
+
     private TreinoDetalhe? _treino;
     private List<ItemDoPlanoSaida> _itens = [];
     private List<CardioDoPlanoSaida> _cardios = [];
@@ -260,7 +318,11 @@ else
     private int _minutos;
     private bool _confirmandoFim;
     private bool _finalizando;
-    private Resumo? _resumo;
+    private bool _editandoObservacao;
+    private string? _textoObservacao;
+    private ResumoDeSessao? _resumo;
+    private Guid _idFinalizada;
+    private bool _entrandoNaFila;
 
     [Parameter]
     public Guid TreinoId { get; set; }
@@ -269,8 +331,12 @@ else
     [SupplyParameterFromQuery(Name = "cardio")]
     public string? CardioEscolhido { get; set; }
 
+    /// <summary>A sessão finalizada já subiu para a API (pode exportar).</summary>
+    private bool Enviado => !_entrandoNaFila && Sincronizacao.Pendentes == 0 && Sincronizacao.Recusadas.Count == 0;
+
     protected override async Task OnInitializedAsync()
     {
+        Sincronizacao.Mudou += AoMudarEnvio;
         var treino = await Treinos.DetalheAsync(TreinoId);
         if (treino.Valor is null)
         {
@@ -323,6 +389,8 @@ else
         }
     }
 
+    private void AoMudarEnvio() => _ = InvokeAsync(StateHasChanged);
+
     private Etapa Atual => _etapas[_sessao!.ExercicioAtual];
 
     private List<SerieFeita> Feitas(int item) => [.. _sessao!.Series.Where(s => s.Item == item).OrderBy(s => s.Ordem)];
@@ -333,6 +401,30 @@ else
         etapa.Cardio ? FeitoDoCardio(etapa.Indice) is not null : Feitas(etapa.Indice).Count >= _itens[etapa.Indice].Series.Count;
 
     private string NomeDa(Etapa etapa) => etapa.Cardio ? $"Cardio: {_cardios[etapa.Indice].NomeDoExercicio}" : _itens[etapa.Indice].NomeDoExercicio;
+
+    private Guid ExercicioDa(Etapa etapa) => etapa.Cardio ? _cardios[etapa.Indice].ExercicioId : _itens[etapa.Indice].ExercicioId;
+
+    /// <summary>A escrita nesta sessão (mesmo apagada) vale mais que a que veio do treino.</summary>
+    private string? MinhaObservacao(Etapa etapa)
+    {
+        var exercicioId = ExercicioDa(etapa);
+        return _sessao!.Anotacoes.Find(a => a.ExercicioId == exercicioId) is { } nesta
+            ? nesta.Texto
+            : etapa.Cardio ? _cardios[etapa.Indice].ObservacaoDoAluno : _itens[etapa.Indice].ObservacaoDoAluno;
+    }
+
+    /// <summary>Descanso da próxima série (ou da última, com tudo feito); sem prescrição, o padrão.</summary>
+    private int DescansoSugerido(Etapa etapa)
+    {
+        if (etapa.Cardio)
+        {
+            return 60;
+        }
+
+        var series = _itens[etapa.Indice].Series;
+        var segundos = series[Math.Min(Feitas(etapa.Indice).Count, series.Count - 1)].DescansoSegundos;
+        return segundos > 0 ? segundos : DescansoPadrao;
+    }
 
     /// <summary>Musculação numerada (1, 2, 3...); cardio como "C" (C1, C2 quando há mais de um).</summary>
     private string RotuloNoMapa(Etapa etapa) =>
@@ -365,6 +457,7 @@ else
         _rir = null;
         _erroSerie = null;
         _anterior = null;
+        _editandoObservacao = false;
         if (Atual.Cardio)
         {
             _minutos = _cardios[Atual.Indice].DuracaoMinutos;
@@ -390,6 +483,28 @@ else
     private void AjustarRepeticoes(int passo) => _repeticoes = Math.Clamp(_repeticoes + passo, 0, 200);
 
     private void AjustarMinutos(int passo) => _minutos = Math.Clamp(_minutos + passo, 1, 300);
+
+    private void AlternarObservacao()
+    {
+        _editandoObservacao = !_editandoObservacao;
+        _textoObservacao = _editandoObservacao ? MinhaObservacao(Atual) : null;
+    }
+
+    /// <summary>Guarda na sessão (funciona offline); sobe junto com o treino ao finalizar.</summary>
+    private async Task SalvarObservacaoAsync(Guid exercicioId)
+    {
+        var texto = string.IsNullOrWhiteSpace(_textoObservacao) ? null : _textoObservacao.Trim();
+        _sessao!.Anotacoes.RemoveAll(a => a.ExercicioId == exercicioId);
+        _sessao.Anotacoes.Add(new AnotacaoRegistrada(exercicioId, texto, DateTimeOffset.UtcNow));
+        _editandoObservacao = false;
+        await Treinos.GuardarEmAndamentoAsync(_sessao);
+    }
+
+    private Task ApagarObservacaoAsync(Guid exercicioId)
+    {
+        _textoObservacao = null;
+        return SalvarObservacaoAsync(exercicioId);
+    }
 
     private async Task RegistrarAsync(int ordem)
     {
@@ -495,9 +610,21 @@ else
         StateHasChanged();
     }
 
+    /// <summary>Descanso sem registrar série (botão "Descansar").</summary>
+    private async Task IniciarDescansoAsync(int segundos)
+    {
+        var agora = DateTimeOffset.UtcNow;
+        _sessao!.DescansoDesde = agora;
+        _sessao.DescansoAte = agora.AddSeconds(segundos);
+        _editandoObservacao = false;
+        await Treinos.GuardarEmAndamentoAsync(_sessao);
+    }
+
+    /// <summary>+15/−15 s. Tirar além do que falta encerra o descanso.</summary>
     private async Task SomarDescansoAsync(int segundos)
     {
-        _sessao!.DescansoAte = _sessao.DescansoAte?.AddSeconds(segundos);
+        var novo = _sessao!.DescansoAte?.AddSeconds(segundos);
+        _sessao.DescansoAte = novo > DateTimeOffset.UtcNow ? novo : null;
         await Treinos.GuardarEmAndamentoAsync(_sessao);
     }
 
@@ -539,28 +666,44 @@ else
             sessao.IniciadaEm,
             fim,
             [.. sessao.Series.Select(s => new SerieRegistrada(s.Id, s.ExercicioId, s.Repeticoes, s.CargaKg, s.Rir, s.RealizadaEm))],
-            [.. sessao.Cardios.Select(c => new CardioRegistrado(c.Id, c.ExercicioId, c.DuracaoMinutos, c.RealizadoEm))]);
+            [.. sessao.Cardios.Select(c => new CardioRegistrado(c.Id, c.ExercicioId, c.DuracaoMinutos, c.RealizadoEm))],
+            sessao.Anotacoes.Count == 0 ? null : sessao.Anotacoes);
 
-        // A próxima vez deste treino começa com os números de hoje.
+        // O resumo compara com a última vez; depois disso, a próxima vez deste treino começa com os números de hoje.
+        _resumo = MontarResumo(sessao, fim);
         foreach (var exercicio in sessao.Series.GroupBy(s => s.ExercicioId))
         {
             _ultimas[exercicio.Key] = [.. exercicio.OrderBy(s => s.Item).ThenBy(s => s.Ordem).Select(s => new SerieAnterior(s.Repeticoes, s.CargaKg))];
         }
 
         await Treinos.GuardarUltimasSeriesAsync(TreinoId, _ultimas);
+        await Treinos.AplicarObservacoesAsync(TreinoId, sessao.Anotacoes.ToDictionary(a => a.ExercicioId, a => a.Texto));
+        await Treinos.EsquecerEvolucaoAsync(TreinoId);
         sessao.DescansoAte = null;
-        _resumo = new Resumo(
-            sessao.Series.Count,
-            sessao.Series.Sum(s => s.Repeticoes * s.CargaKg),
-            Math.Max(1, (int)Math.Round((fim - sessao.IniciadaEm).TotalMinutes)),
-            sessao.Cardios.Sum(c => c.DuracaoMinutos));
+        _idFinalizada = sessao.Id;
         await Treinos.RegistrarNoHistoricoAsync(new SessaoResumo(
-            sessao.Id, sessao.TreinoId, _treino!.Nome, sessao.IniciadaEm, fim, _resumo.Series, _resumo.VolumeKg, _resumo.MinutosDeCardio));
+            sessao.Id, sessao.TreinoId, _treino!.Nome, sessao.IniciadaEm, fim, _resumo.Series, _resumo.Volume, _resumo.MinutosDeCardio));
         await Treinos.DescartarEmAndamentoAsync();
         await ChamarJsAsync("volumo.telaAcesa.desligar");
+
+        // Até a primeira tentativa de envio terminar, a contagem da fila ainda não inclui este treino.
+        _entrandoNaFila = true;
         StateHasChanged();
         await Sincronizacao.AdicionarAsync(registrada);
+        _entrandoNaFila = false;
     }
+
+    /// <summary>Exercícios na ordem do treino (só os que tiveram série), com a última vez para comparar.</summary>
+    private ResumoDeSessao MontarResumo(SessaoEmAndamento sessao, DateTimeOffset fim) => new(
+        _treino!.Nome,
+        sessao.IniciadaEm,
+        fim,
+        [.. sessao.Series.GroupBy(s => s.Item).OrderBy(g => g.Key).Select(g => new ExercicioNoResumo(
+            _itens[g.Key].NomeDoExercicio,
+            [.. g.OrderBy(s => s.Ordem).Select(s => new SerieNoResumo(s.CargaKg, s.Repeticoes, s.Rir))],
+            _ultimas.GetValueOrDefault(_itens[g.Key].ExercicioId)))],
+        [.. sessao.Cardios.OrderBy(c => c.RealizadoEm).Select(c => new CardioNoResumo(_cardios[c.Cardio].NomeDoExercicio, c.DuracaoMinutos))],
+        _itens.Count);
 
     private static string Formatar(TimeSpan restante)
     {
@@ -581,6 +724,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        Sincronizacao.Mudou -= AoMudarEnvio;
         if (_relogio is not null)
         {
             await _relogio.DisposeAsync();
@@ -591,6 +735,4 @@ else
 
     /// <param name="Cardio">Verdadeiro para cardio; <paramref name="Indice"/> aponta para a lista correspondente.</param>
     private readonly record struct Etapa(bool Cardio, int Indice);
-
-    private sealed record Resumo(int Series, decimal VolumeKg, int Minutos, int MinutosDeCardio);
 }

@@ -58,6 +58,8 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, I
 
     public DbSet<RegistroCardio> RegistrosCardio => Set<RegistroCardio>();
 
+    public DbSet<AnotacaoDoAluno> AnotacoesDoAluno => Set<AnotacaoDoAluno>();
+
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         BloquearExclusaoFisica();
@@ -122,6 +124,11 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, I
             UsuarioDoAcesso == null
             || s.AlunoId == UsuarioDoAcesso
             || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == s.AlunoId && v.EncerradoEm == null));
+
+        builder.Entity<AnotacaoDoAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, a =>
+            UsuarioDoAcesso == null
+            || a.AlunoId == UsuarioDoAcesso
+            || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == a.AlunoId && v.EncerradoEm == null));
 
         builder.Entity<RegistroSerie>().HasQueryFilter(FiltrosDeConsulta.Dono, r =>
             UsuarioDoAcesso == null

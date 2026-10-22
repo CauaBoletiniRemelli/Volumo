@@ -1,0 +1,65 @@
+@* Baixa da API o treino ou a sessão em Excel ou PDF e salva no aparelho. Precisa de internet. *@
+@using Volumo.Shared.Sessoes
+@inject ApiVolumo Api
+@inject IJSRuntime JS
+
+<div class="exportar">
+    <span class="rotulo">@Titulo</span>
+    <div class="linha-de-botoes exportar-botoes">
+        <button type="button" class="botao" disabled="@(_baixando is not null)" @onclick="() => BaixarAsync(FormatoDeExportacao.Xlsx)">
+            @(_baixando == FormatoDeExportacao.Xlsx ? "Gerando" : "Excel (.xlsx)")
+        </button>
+        <button type="button" class="botao" disabled="@(_baixando is not null)" @onclick="() => BaixarAsync(FormatoDeExportacao.Pdf)">
+            @(_baixando == FormatoDeExportacao.Pdf ? "Gerando" : "PDF")
+        </button>
+    </div>
+    @if (_erro is not null)
+    {
+        <p class="campo-erro" role="alert">@_erro</p>
+    }
+</div>
+
+@code {
+    private FormatoDeExportacao? _baixando;
+    private string? _erro;
+
+    /// <summary>Rota da exportação na API, sem a query (ex.: <c>treinos/{id}/exportar</c>).</summary>
+    [Parameter, EditorRequired]
+    public string Caminho { get; set; } = "";
+
+    /// <summary>Nome do arquivo sem extensão (vira "treino-a-22-10-2026.pdf").</summary>
+    [Parameter, EditorRequired]
+    public string NomeDoArquivo { get; set; } = "";
+
+    [Parameter]
+    public string Titulo { get; set; } = "Exportar";
+
+    private async Task BaixarAsync(FormatoDeExportacao formato)
+    {
+        _baixando = formato;
+        _erro = null;
+        try
+        {
+            // Horários do arquivo no fuso do aparelho.
+            var fuso = (int)DateTimeOffset.Now.Offset.TotalMinutes;
+            var extensao = formato == FormatoDeExportacao.Pdf ? "pdf" : "xlsx";
+            var resultado = await Api.BaixarAsync($"{Caminho}?formato={extensao}&fuso={fuso}");
+            if (resultado.Valor is not { } bytes)
+            {
+                _erro = resultado.Status == 0 ? "Sem conexão: a exportação precisa de internet." : resultado.Erro;
+                return;
+            }
+
+            var tipo = formato == FormatoDeExportacao.Pdf ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            await JS.InvokeVoidAsync("volumo.baixarArquivo", $"{Rotulos.ParaArquivo(NomeDoArquivo)}.{extensao}", tipo, bytes);
+        }
+        catch (JSException)
+        {
+            _erro = "Não foi possível salvar o arquivo neste navegador.";
+        }
+        finally
+        {
+            _baixando = null;
+        }
+    }
+}

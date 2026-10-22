@@ -25,10 +25,19 @@ public abstract class Perfil : EntidadeInativavel
 
     public bool Anonimizado => AnonimizadoEm is not null;
 
+    /// <summary>Desenho do corpo no mapa de músculos dos exercícios (preferência de exibição).</summary>
+    public CorpoDoDesenho CorpoDoDesenho { get; private set; } = CorpoDoDesenho.Masculino;
+
     public void Renomear(string nome)
     {
         GarantirAtivo();
         Nome = Guarda.Texto(nome, "Nome", NomeMaximo);
+    }
+
+    public void DefinirCorpoDoDesenho(CorpoDoDesenho corpo)
+    {
+        GarantirAtivo();
+        CorpoDoDesenho = Guarda.EnumValido(corpo, "Desenho do corpo");
     }
 
     /// <summary>Apaga os dados pessoais e inativa o perfil. Não tem volta. Repetir não muda nada.</summary>
@@ -40,6 +49,7 @@ public abstract class Perfil : EntidadeInativavel
         }
 
         Nome = NomeAnonimizado;
+        CorpoDoDesenho = CorpoDoDesenho.Masculino;
         ApagarDadosPessoais();
         AnonimizadoEm = agora;
         Inativar(agora);
