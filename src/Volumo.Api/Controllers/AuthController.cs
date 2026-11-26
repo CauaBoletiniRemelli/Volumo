@@ -77,13 +77,16 @@ public sealed class AuthController(
                 return IdentityProblem(created);
             }
 
-            var roleAdded = await userManager.AddToRoleAsync(usuario, Papeis.Personal);
+            // O personal também treina: o papel e o perfil de aluno dão a ele "Meus treinos" e o registro
+            // das próprias sessões, com as mesmas telas e regras de quem treina.
+            var roleAdded = await userManager.AddToRolesAsync(usuario, [Papeis.Personal, Papeis.Aluno]);
             if (!roleAdded.Succeeded)
             {
-                throw new InvalidOperationException("Não foi possível atribuir o papel Personal: " + string.Join("; ", roleAdded.Errors.Select(e => e.Code)));
+                throw new InvalidOperationException("Não foi possível atribuir os papéis Personal e Aluno: " + string.Join("; ", roleAdded.Errors.Select(e => e.Code)));
             }
 
             db.PerfisPersonal.Add(PerfilPersonal.Criar(usuario.Id, request.Nome, cref));
+            db.PerfisAluno.Add(PerfilAluno.Criar(usuario.Id, request.Nome));
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }

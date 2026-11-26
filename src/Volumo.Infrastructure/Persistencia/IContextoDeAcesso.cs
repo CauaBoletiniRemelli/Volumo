@@ -8,4 +8,7 @@ namespace Volumo.Infrastructure.Persistencia;
 public interface IContextoDeAcesso
 {
     Guid? UsuarioId { get; }
+
+    /// <summary>A sessão passou pelo 2FA. Sem ele, o personal não enxerga os dados dos alunos.</summary>
+    bool ComDoisFatores { get; }
 }

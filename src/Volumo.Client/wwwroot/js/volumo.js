@@ -64,6 +64,78 @@ window.volumo = {
         setTimeout(() => URL.revokeObjectURL(url), 10000);
     },
 
+    // Arrastar e colar arquivos numa área de envio. O arquivo vai para o <input type="file"> do
+    // InputFile e dispara o "change", então o Blazor recebe como se a pessoa tivesse escolhido.
+    areaDeEnvio: {
+        _aceita(arquivo, tipos) {
+            return tipos.split(',').map(t => t.trim()).includes(arquivo.type);
+        },
+
+        _entregar(input, arquivo) {
+            const transferencia = new DataTransfer();
+            transferencia.items.add(arquivo);
+            input.files = transferencia.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+
+        // Devolve uma função que desliga os eventos (chamada quando o componente sai da tela).
+        ligar(zona, input) {
+            const temArquivo = e => Array.from(e.dataTransfer?.types ?? []).includes('Files');
+            const sobre = e => {
+                if (temArquivo(e) && !input.disabled) {
+                    e.preventDefault();
+                    zona.classList.add('arrastando');
+                }
+            };
+            const saiu = e => {
+                if (!zona.contains(e.relatedTarget)) {
+                    zona.classList.remove('arrastando');
+                }
+            };
+            const soltou = e => {
+                zona.classList.remove('arrastando');
+                if (!temArquivo(e) || input.disabled) {
+                    return;
+                }
+
+                e.preventDefault();
+                const arquivo = e.dataTransfer.files[0];
+                if (arquivo) {
+                    this._entregar(input, arquivo);
+                }
+            };
+            // Colar vale na página toda; cada área pega só o tipo que aceita (imagem vai para a
+            // foto, vídeo para o vídeo). Colar texto num campo segue normal.
+            const colou = e => {
+                if (input.disabled) {
+                    return;
+                }
+
+                const arquivo = Array.from(e.clipboardData?.files ?? []).find(a => this._aceita(a, input.accept));
+                if (arquivo) {
+                    e.preventDefault();
+                    this._entregar(input, arquivo);
+                }
+            };
+
+            zona.addEventListener('dragenter', sobre);
+            zona.addEventListener('dragover', sobre);
+            zona.addEventListener('dragleave', saiu);
+            zona.addEventListener('drop', soltou);
+            document.addEventListener('paste', colou);
+
+            return {
+                desligar() {
+                    zona.removeEventListener('dragenter', sobre);
+                    zona.removeEventListener('dragover', sobre);
+                    zona.removeEventListener('dragleave', saiu);
+                    zona.removeEventListener('drop', soltou);
+                    document.removeEventListener('paste', colou);
+                },
+            };
+        },
+    },
+
     // Dados de treino guardados no aparelho (IndexedDB) para usar sem internet. Só JSON de
     // treinos e sessões, nunca token. Chaves prefixadas pelo id do usuário.
     local: {

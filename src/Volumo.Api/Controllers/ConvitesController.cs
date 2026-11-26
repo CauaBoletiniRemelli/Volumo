@@ -33,6 +33,13 @@ public sealed class ConvitesController(
         var personal = await db.PerfisPersonal.SingleAsync(p => p.Id == personalId, ct);
         var now = clock.GetUtcNow();
 
+        // O personal tem perfil de aluno para os próprios treinos: um vínculo consigo mesmo não faz sentido.
+        var proprioEmail = (await userManager.FindByIdAsync(personalId.ToString()))?.NormalizedEmail;
+        if (string.Equals(proprioEmail, userManager.NormalizeEmail(request.Email), StringComparison.Ordinal))
+        {
+            return SelfInvite();
+        }
+
         if (await IsAlreadyMyStudentAsync(personalId, request.Email, ct))
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: "Esta pessoa já é sua aluna.");
@@ -127,6 +134,21 @@ public sealed class ConvitesController(
             return Problem(statusCode: StatusCodes.Status403Forbidden, title: "Este convite foi enviado para outro e-mail.");
         }
 
+        if (convite.PersonalId == alunoId)
+        {
+            return SelfInvite();
+        }
+
+        // O perfil de aluno do personal é só para os próprios treinos: ele não vira aluno de outro
+        // personal (o outro passaria a ver os treinos e as sessões dele).
+        if (await db.PerfisPersonal.IgnoreQueryFilters([FiltrosDeConsulta.Ativos]).AnyAsync(p => p.Id == alunoId, ct))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Conta de personal não pode ser aluna de outro personal.",
+                detail: "Para treinar com outro personal, use uma conta de aluno com outro e-mail.");
+        }
+
         var aluno = await db.PerfisAluno.SingleAsync(a => a.Id == alunoId, ct);
         var vinculoAtivo = await db.VinculosPersonalAluno.SingleOrDefaultAsync(v => v.AlunoId == alunoId && v.EncerradoEm == null, ct);
         var personalAtual = vinculoAtivo is null
@@ -146,6 +168,9 @@ public sealed class ConvitesController(
 
         return NoContent();
     }
+
+    private ObjectResult SelfInvite() =>
+        Problem(statusCode: StatusCodes.Status400BadRequest, title: "Você não pode convidar a si mesmo. Seus treinos ficam em \"Treinos\".");
 
     private async Task<ConviteAluno?> FindAcceptableAsync(string token, CancellationToken ct)
     {

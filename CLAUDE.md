@@ -26,16 +26,32 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
 - **Treino que se adapta ao dia**: "dormi mal" ou "só tenho 30 min" encurta ou ajusta o treino sem perder o foco da semana.
 - **Mapa muscular de volume semanal**: boneco colorido mostrando músculos com pouco ou muito volume.
 - **Recordes e histórico visual**: gráficos de evolução e alertas de novo recorde pessoal.
+- **Calendário e dias da semana** (pedido de 28/10/2026, implementado): calendário do mês com os dias treinados, para o aluno e para o personal; o personal marca em que dias da semana o aluno faz cada treino (o aluno marca nos treinos dele), e o treino do dia aparece com a etiqueta "Hoje".
 - **Offline e uso com uma mão**: botões grandes, cronômetro de descanso automático, sem login a cada uso.
 
 ### Para personal trainers
 - **Construtor de treino rápido**: arrastar e soltar, templates reutilizáveis, periodização (mesociclos).
+  - **Presets de séries** (pedido de 25/10/2026, implementado): esquemas prontos (3 × 10, 4 × 8–12, 5 × 5, pirâmide crescente 10 · 8 · 5 · 3, 3 × 15–20, com aquecimento) e próprios, aplicados num exercício de uma vez; substituem as séries, sem carga. Personal e aluno criam os seus.
+- **Personal também treina** (pedido de 25/10/2026, implementado): todo personal tem também perfil de aluno e registra os próprios treinos em "Meus treinos", podendo começar de um modelo dele.
+- **Aluno monta o próprio treino** (avaliado e implementado em 25/10/2026): além dos treinos do personal, o aluno pode montar os seus; só ele altera, e o personal vê.
 - **Painel de alunos**: quem treinou, quem sumiu há 5 dias, quem estagnou numa carga.
   - **Estagnação configurável por aluno** (decisão de 20/10/2026): o personal escolhe medir por dias ou por sessões sem subir peso; padrão de 15 dias sem subir peso, indicado na tela.
 - **Vitrine/loja própria**: página com o nome do personal para vender programas prontos, com Pix e cartão.
 - **Feedback por vídeo**: o aluno grava a execução e o personal comenta no ponto exato.
 - **Check-ins automáticos**: fotos, peso e medidas com comparativo lado a lado.
 - **White label leve**: logo e cores do personal no app do aluno.
+
+### Destaque principal: "o personal presente mesmo quando não está lá" (ideia de 28/10/2026)
+O personal vende presença, mas acompanha 20 ou 30 alunos e não consegue estar com todos. A proposta central do Volumo para ele pagar: o aluno sente que o personal está junto, sem dar mais trabalho ao personal. Três peças:
+- **Fila do dia do personal** (carro-chefe): em vez de só mostrar dados, uma lista curta de ações prontas, cada uma resolvida com 1 toque. Ex.: "João está há 3 sessões em 60 kg no supino → subir para 62,5 kg"; "Ana sumiu há 6 dias → mensagem pronta no WhatsApp"; "Pedro bateu recorde → parabenizar"; "Carla marcou dor no ombro → ver". Reaproveita estagnação, sumidos, recordes e sessões que já existem; é a mais barata de construir agora.
+- **Voz do personal durante o treino**: nota de voz curta (10–15 s) por exercício, tocada na sessão quando o aluno chega nele. Complementa o vídeo padronizado do catálogo (o vídeo ensina o movimento; a voz é o toque pessoal). Junto, o botão **"senti dor aqui"** no exercício, que gera alerta na fila do personal (cuidado com o aluno e proteção do personal).
+- **Retrospectiva do aluno com a marca do personal**: resumo visual mensal ou por ciclo (treinos, volume, recordes, semanas seguidas) em formato de story, com logo e @ do personal. O aluno posta e o personal ganha divulgação no Instagram; a ferramenta passa a trazer clientes para ele.
+
+Gancho por plano (a validar): Grátis com painel básico; Start com a fila do dia; Pro com voz por exercício, alertas de dor e relatórios; Elite com retrospectiva de marca própria e white label.
+
+Depois do beta, avaliar **cobrança dos alunos pelo personal no app** (Pix recorrente, lembrete de vencimento, taxa transparente): dor real e constrangedora do personal, mas envolve gateway, conta de recebimento e questões fiscais.
+
+Próximo passo: levar a fila do dia e a retrospectiva para as conversas com personais (seção 10) e perguntar se pagariam o plano por elas.
 
 ### Para a plataforma (TI / dono do Volumo)
 - **Painel administrativo** (pedido de 20/10/2026, importante): visão de pagamentos e assinaturas (situação de cada personal, falhas de cobrança, comissões, MRR, churn), contas (personais e alunos, suspensão, CREF), uso da plataforma e saúde do sistema. Só para o papel Admin com 2FA; dados de alunos apenas agregados (LGPD). Detalhes e ordem em `docs/contexto-backend.md`, seção 8.

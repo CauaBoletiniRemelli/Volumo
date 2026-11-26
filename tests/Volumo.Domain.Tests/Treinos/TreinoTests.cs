@@ -297,5 +297,29 @@ public sealed class TreinoTests
         Should.Throw<RegraDeNegocioException>(() => treino.Posicionar(1));
     }
 
+    [Fact]
+    public void MarcarDias_substitui_os_dias_e_recusa_dia_invalido_ou_treino_inativo()
+    {
+        var treino = CriarTreino();
+
+        treino.MarcarDias(DiasDaSemana.Segunda | DiasDaSemana.Quinta);
+        treino.MarcarDias(DiasDaSemana.Terca);
+
+        treino.Dias.ShouldBe(DiasDaSemana.Terca);
+        Should.Throw<RegraDeNegocioException>(() => treino.MarcarDias((DiasDaSemana)128));
+        treino.Inativar(Dados.Agora);
+        Should.Throw<RegraDeNegocioException>(() => treino.MarcarDias(DiasDaSemana.Nenhum));
+    }
+
+    [Fact]
+    public void Dias_convertem_de_e_para_a_lista_de_DayOfWeek()
+    {
+        var dias = new[] { DayOfWeek.Thursday, DayOfWeek.Monday, DayOfWeek.Monday }.ParaDias();
+
+        dias.ShouldBe(DiasDaSemana.Segunda | DiasDaSemana.Quinta);
+        dias.ParaLista().ShouldBe([DayOfWeek.Monday, DayOfWeek.Thursday]);
+        DiasDaSemana.Nenhum.ParaLista().ShouldBeEmpty();
+    }
+
     private Treino CriarTreino() => Treino.CriarPeloPersonal(Dados.NovoId(), _personalId, _alunoId, "Treino A");
 }

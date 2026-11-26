@@ -59,11 +59,12 @@
                 }
             }
 
-            @if (!_criando)
+            @* Exercício personalizado é do personal: quem monta o próprio treino usa o catálogo. *@
+            @if (PodeCriar && !_criando)
             {
                 <button type="button" class="botao botao-texto" @onclick="AbrirCriacao">Não achou? Criar exercício</button>
             }
-            else
+            else if (PodeCriar)
             {
                 <div class="criar pilha" style="--espaco: 12px">
                     <div class="campo">
@@ -121,6 +122,10 @@
     /// <summary>Mostra só um grupo (ex.: Cardio, na aba de cardio) e cria exercícios nele.</summary>
     [Parameter]
     public GrupoMuscular? SomenteGrupo { get; set; }
+
+    /// <summary>Mostra "Criar exercício" (personalizado é só do personal).</summary>
+    [Parameter]
+    public bool PodeCriar { get; set; } = true;
 
     /// <summary>Esconde um grupo (ex.: Cardio na aba de musculação, que tem aba própria).</summary>
     [Parameter]

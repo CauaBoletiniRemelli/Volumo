@@ -84,6 +84,9 @@ public static class AuthSetup
             .AddPolicy(Policies.Aluno, policy => policy
                 .RequireRole(Papeis.Aluno)
                 .RequireAssertion(ActiveAccount))
+            .AddPolicy(Policies.PersonalOuAluno, policy => policy
+                .RequireRole(Papeis.Personal, Papeis.Aluno)
+                .RequireAssertion(ActiveAccount))
             .AddPolicy(Policies.ContaAtiva, policy => policy
                 .RequireAuthenticatedUser()
                 .RequireAssertion(ActiveAccount))

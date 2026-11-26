@@ -41,13 +41,29 @@
                     }
                     else
                     {
-                        <ul class="lista">
+                        <ul class="lista lista-empilha">
                             @for (var i = 0; i < _treinos.Count; i++)
                             {
                                 var indice = i;
                                 var treino = _treinos[indice];
                                 <li @key="treino.Id">
-                                    <a class="treino-nome" href="treinos/@treino.Id/editar">@treino.Nome</a>
+                                    <div class="treino-com-dias pilha" style="--espaco: 8px">
+                                        @if (treino.MontadoPeloAluno)
+                                        {
+                                            @* Montado pelo próprio aluno: o personal vê na lista e nas sessões, mas não altera (nem os dias). *@
+                                            <span class="treino-nome">@treino.Nome <span class="etiqueta">Do aluno</span></span>
+                                            @if (Rotulos.Dias(treino.DiasOuVazio) is { } dias)
+                                            {
+                                                <span class="secundario">@dias</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <a class="treino-nome" href="treinos/@treino.Id/editar">@treino.Nome</a>
+                                            <EscolhaDeDias TreinoId="treino.Id" Nome="@treino.Nome" Dias="treino.DiasOuVazio"
+                                                           DiasChanged="dias => _treinos[indice] = treino with { Dias = dias }" />
+                                        }
+                                    </div>
                                     <span class="linha-de-botoes alinhada">
                                         <span class="secundario"><span class="numero">@treino.QuantidadeDeExercicios</span> @Rotulos.Plural(treino.QuantidadeDeExercicios, "exercício", "exercícios")</span>
                                         @if (_treinos.Count > 1)
@@ -57,12 +73,12 @@
                                             <button class="botao botao-texto" title="Descer" aria-label="Descer @treino.Nome" disabled="@(indice == _treinos.Count - 1 || _reordenando)"
                                                     @onclick="() => MoverAsync(indice, 1)">↓</button>
                                         }
-                                        @if (_confirmando == treino.Id)
+                                        @if (!treino.MontadoPeloAluno && _confirmando == treino.Id)
                                         {
                                             <button class="botao botao-texto texto-erro" @onclick="() => ArquivarAsync(treino.Id)">Confirmar</button>
                                             <button class="botao botao-texto" @onclick="() => _confirmando = null">Manter</button>
                                         }
-                                        else
+                                        else if (!treino.MontadoPeloAluno)
                                         {
                                             <button class="botao botao-texto" @onclick="() => _confirmando = treino.Id">Arquivar</button>
                                         }
@@ -70,8 +86,14 @@
                                 </li>
                             }
                         </ul>
+                        <p class="campo-ajuda treinos-dias-ajuda">Toque nos dias para marcar quando o aluno faz cada treino. Ele vê no calendário e na lista, com a etiqueta "Hoje".</p>
                     }
                 </section>
+
+                @if (_sessoes is not null)
+                {
+                    <CalendarioDeTreinos Titulo="Dias de treino" Sessoes="_sessoes" Treinos="_treinos" />
+                }
 
                 <section class="painel">
                     <div class="painel-cabecalho"><h2>Últimos treinos feitos</h2></div>

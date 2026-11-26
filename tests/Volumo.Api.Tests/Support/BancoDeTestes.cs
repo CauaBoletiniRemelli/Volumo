@@ -25,11 +25,11 @@ public sealed class BancoDeTestes : IAsyncLifetime
     public static VolumoDbContext NovoContexto() =>
         new(new DbContextOptionsBuilder<VolumoDbContext>().UseSqlServer(ConnectionString).Options);
 
-    /// <summary>Contexto como se a requisição fosse deste usuário: filtros de dono ligados.</summary>
-    public static VolumoDbContext NovoContexto(Guid usuarioId) =>
-        new(new DbContextOptionsBuilder<VolumoDbContext>().UseSqlServer(ConnectionString).Options, new AcessoFixo(usuarioId));
+    /// <summary>Contexto como se a requisição fosse deste usuário: filtros de dono ligados (por padrão, sessão com 2FA).</summary>
+    public static VolumoDbContext NovoContexto(Guid usuarioId, bool comDoisFatores = true) =>
+        new(new DbContextOptionsBuilder<VolumoDbContext>().UseSqlServer(ConnectionString).Options, new AcessoFixo(usuarioId, comDoisFatores));
 
-    private sealed record AcessoFixo(Guid? UsuarioId) : IContextoDeAcesso;
+    private sealed record AcessoFixo(Guid? UsuarioId, bool ComDoisFatores) : IContextoDeAcesso;
 
     public async ValueTask InitializeAsync()
     {

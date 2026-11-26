@@ -60,6 +60,8 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, I
 
     public DbSet<AnotacaoDoAluno> AnotacoesDoAluno => Set<AnotacaoDoAluno>();
 
+    public DbSet<PresetDeSeries> PresetsDeSeries => Set<PresetDeSeries>();
+
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         BloquearExclusaoFisica();
@@ -75,6 +77,12 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, I
     /// <summary>Lido a cada consulta pelos filtros de dono (o EF trata como parâmetro da instância).</summary>
     private Guid? UsuarioDoAcesso => acesso?.UsuarioId;
 
+    /// <summary>
+    /// Sessão com 2FA. Os dados dos alunos só aparecem para o personal assim: sem 2FA, ele vê só o que
+    /// é dele (inclusive os próprios treinos), em qualquer rota.
+    /// </summary>
+    private bool PersonalComDoisFatores => acesso?.ComDoisFatores ?? false;
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -85,7 +93,9 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, I
     /// <summary>
     /// Proteção contra IDOR no banco: mesmo que uma consulta esqueça de filtrar pelo dono, os dados
     /// de outra conta não aparecem. Regras:
-    /// personal vê os próprios templates, exercícios e convites e os dados dos alunos com vínculo ativo;
+    /// personal vê os próprios templates, exercícios e convites e, se entrou com 2FA, os dados dos alunos
+    /// com vínculo ativo (o 2FA do personal vale também nas rotas abertas a qualquer conta);
+    /// cada conta vê os próprios presets de séries;
     /// aluno vê os próprios treinos e sessões, o perfil e os exercícios dos personais com quem teve vínculo.
     /// </summary>
     private void ConfigurarFiltrosDeDono(ModelBuilder builder)
@@ -98,10 +108,10 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, I
         builder.Entity<PerfilAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, a =>
             UsuarioDoAcesso == null
             || a.Id == UsuarioDoAcesso
-            || VinculosPersonalAluno.Any(v => v.AlunoId == a.Id && v.PersonalId == UsuarioDoAcesso && v.EncerradoEm == null));
+            || VinculosPersonalAluno.Any(v => v.AlunoId == a.Id && (PersonalComDoisFatores && v.PersonalId == UsuarioDoAcesso) && v.EncerradoEm == null));
 
         builder.Entity<VinculoPersonalAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, v =>
-            UsuarioDoAcesso == null || v.PersonalId == UsuarioDoAcesso || v.AlunoId == UsuarioDoAcesso);
+            UsuarioDoAcesso == null || (PersonalComDoisFatores && v.PersonalId == UsuarioDoAcesso) || v.AlunoId == UsuarioDoAcesso);
 
         builder.Entity<ConviteAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, c =>
             UsuarioDoAcesso == null || c.PersonalId == UsuarioDoAcesso || c.AlunoId == UsuarioDoAcesso);
@@ -115,32 +125,35 @@ public sealed class VolumoDbContext(DbContextOptions<VolumoDbContext> options, I
         builder.Entity<TemplateTreino>().HasQueryFilter(FiltrosDeConsulta.Dono, t =>
             UsuarioDoAcesso == null || t.PersonalId == UsuarioDoAcesso);
 
+        builder.Entity<PresetDeSeries>().HasQueryFilter(FiltrosDeConsulta.Dono, p =>
+            UsuarioDoAcesso == null || p.DonoId == UsuarioDoAcesso);
+
         builder.Entity<Treino>().HasQueryFilter(FiltrosDeConsulta.Dono, t =>
             UsuarioDoAcesso == null
             || t.AlunoId == UsuarioDoAcesso
-            || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == t.AlunoId && v.EncerradoEm == null));
+            || VinculosPersonalAluno.Any(v => (PersonalComDoisFatores && v.PersonalId == UsuarioDoAcesso) && v.AlunoId == t.AlunoId && v.EncerradoEm == null));
 
         builder.Entity<SessaoTreino>().HasQueryFilter(FiltrosDeConsulta.Dono, s =>
             UsuarioDoAcesso == null
             || s.AlunoId == UsuarioDoAcesso
-            || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == s.AlunoId && v.EncerradoEm == null));
+            || VinculosPersonalAluno.Any(v => (PersonalComDoisFatores && v.PersonalId == UsuarioDoAcesso) && v.AlunoId == s.AlunoId && v.EncerradoEm == null));
 
         builder.Entity<AnotacaoDoAluno>().HasQueryFilter(FiltrosDeConsulta.Dono, a =>
             UsuarioDoAcesso == null
             || a.AlunoId == UsuarioDoAcesso
-            || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == a.AlunoId && v.EncerradoEm == null));
+            || VinculosPersonalAluno.Any(v => (PersonalComDoisFatores && v.PersonalId == UsuarioDoAcesso) && v.AlunoId == a.AlunoId && v.EncerradoEm == null));
 
         builder.Entity<RegistroSerie>().HasQueryFilter(FiltrosDeConsulta.Dono, r =>
             UsuarioDoAcesso == null
             || SessoesTreino.Any(s => s.Id == r.SessaoId
                 && (s.AlunoId == UsuarioDoAcesso
-                    || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == s.AlunoId && v.EncerradoEm == null))));
+                    || VinculosPersonalAluno.Any(v => (PersonalComDoisFatores && v.PersonalId == UsuarioDoAcesso) && v.AlunoId == s.AlunoId && v.EncerradoEm == null))));
 
         builder.Entity<RegistroCardio>().HasQueryFilter(FiltrosDeConsulta.Dono, c =>
             UsuarioDoAcesso == null
             || SessoesTreino.Any(s => s.Id == c.SessaoId
                 && (s.AlunoId == UsuarioDoAcesso
-                    || VinculosPersonalAluno.Any(v => v.PersonalId == UsuarioDoAcesso && v.AlunoId == s.AlunoId && v.EncerradoEm == null))));
+                    || VinculosPersonalAluno.Any(v => (PersonalComDoisFatores && v.PersonalId == UsuarioDoAcesso) && v.AlunoId == s.AlunoId && v.EncerradoEm == null))));
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

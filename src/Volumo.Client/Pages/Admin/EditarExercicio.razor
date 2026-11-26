@@ -109,19 +109,17 @@
                     <div class="midias">
                         <div class="midia pilha" style="--espaco: 10px">
                             <p class="rotulo">Foto · JPEG, PNG ou WebP até 2 MB</p>
-                            @if (detalhe.FotoUrl is { } foto)
-                            {
-                                <img class="previa" src="@foto" alt="Foto de @detalhe.Nome" />
-                            }
-                            else
-                            {
-                                <div class="previa previa-vazia">Sem foto</div>
-                            }
-                            <label class="botao">
-                                @(_enviando == TipoDeEnvio.Foto ? "Enviando" : detalhe.FotoUrl is null ? "Escolher foto" : "Trocar foto")
-                                <InputFile class="visualmente-oculto" accept="image/jpeg,image/png,image/webp" disabled="@(_enviando is not null)"
-                                           OnChange="e => EnviarAsync(e, TipoDeEnvio.Foto)" />
-                            </label>
+                            <AreaDeEnvio Tipos="@TiposDeFoto" Desabilitado="@(_enviando is not null)" AoEscolher="e => EnviarAsync(e, TipoDeEnvio.Foto)"
+                                         TextoDoBotao="@(_enviando == TipoDeEnvio.Foto ? "Enviando" : detalhe.FotoUrl is null ? "Escolher foto" : "Trocar foto")">
+                                @if (detalhe.FotoUrl is { } foto)
+                                {
+                                    <img class="previa" src="@foto" alt="Foto de @detalhe.Nome" />
+                                }
+                                else
+                                {
+                                    <div class="previa previa-vazia">Sem foto</div>
+                                }
+                            </AreaDeEnvio>
                             @if (detalhe.FotoUrl is not null)
                             {
                                 <button type="button" class="botao botao-texto texto-erro" disabled="@(_enviando is not null)" @onclick="() => RemoverAsync(TipoDeEnvio.Foto)">Remover foto</button>
@@ -130,19 +128,17 @@
 
                         <div class="midia pilha" style="--espaco: 10px">
                             <p class="rotulo">Vídeo · MP4 ou WebM até 10 MB</p>
-                            @if (detalhe.VideoUrl is { } video)
-                            {
-                                <video class="previa" src="@video" muted loop autoplay playsinline controls aria-label="Vídeo de execução de @detalhe.Nome"></video>
-                            }
-                            else
-                            {
-                                <div class="previa previa-vazia">Sem vídeo</div>
-                            }
-                            <label class="botao">
-                                @(_enviando == TipoDeEnvio.Video ? "Enviando" : detalhe.VideoUrl is null ? "Escolher vídeo" : "Trocar vídeo")
-                                <InputFile class="visualmente-oculto" accept="video/mp4,video/webm" disabled="@(_enviando is not null)"
-                                           OnChange="e => EnviarAsync(e, TipoDeEnvio.Video)" />
-                            </label>
+                            <AreaDeEnvio Tipos="@TiposDeVideo" Desabilitado="@(_enviando is not null)" AoEscolher="e => EnviarAsync(e, TipoDeEnvio.Video)"
+                                         TextoDoBotao="@(_enviando == TipoDeEnvio.Video ? "Enviando" : detalhe.VideoUrl is null ? "Escolher vídeo" : "Trocar vídeo")">
+                                @if (detalhe.VideoUrl is { } video)
+                                {
+                                    <video class="previa" src="@video" muted loop autoplay playsinline controls aria-label="Vídeo de execução de @detalhe.Nome"></video>
+                                }
+                                else
+                                {
+                                    <div class="previa previa-vazia">Sem vídeo</div>
+                                }
+                            </AreaDeEnvio>
                             @if (detalhe.VideoUrl is not null)
                             {
                                 <button type="button" class="botao botao-texto texto-erro" disabled="@(_enviando is not null)" @onclick="() => RemoverAsync(TipoDeEnvio.Video)">Remover vídeo</button>
@@ -175,6 +171,8 @@
 @code {
     private const long FotoMaxima = 2 * 1024 * 1024;
     private const long VideoMaximo = 10 * 1024 * 1024;
+    private const string TiposDeFoto = "image/jpeg,image/png,image/webp";
+    private const string TiposDeVideo = "video/mp4,video/webm";
 
     private enum TipoDeEnvio { Foto, Video }
 
@@ -273,6 +271,13 @@
         _erroMidia = null;
         var arquivo = e.File;
         var maximo = tipo == TipoDeEnvio.Foto ? FotoMaxima : VideoMaximo;
+        // Arrastando, chega qualquer arquivo (o accept só filtra a janela de escolher).
+        if (!(tipo == TipoDeEnvio.Foto ? TiposDeFoto : TiposDeVideo).Split(',').Contains(arquivo.ContentType))
+        {
+            _erroMidia = tipo == TipoDeEnvio.Foto ? "A foto precisa ser JPEG, PNG ou WebP." : "O vídeo precisa ser MP4 ou WebM.";
+            return;
+        }
+
         if (arquivo.Size > maximo)
         {
             _erroMidia = tipo == TipoDeEnvio.Foto ? "A foto precisa ter até 2 MB." : "O vídeo precisa ter até 10 MB.";

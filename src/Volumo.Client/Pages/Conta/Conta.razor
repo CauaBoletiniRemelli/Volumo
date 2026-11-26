@@ -21,7 +21,8 @@ else
     <div class="painel">
         <dl class="dados">
             <div><dt class="rotulo">E-mail</dt><dd>@_dados.Email</dd></div>
-            <div><dt class="rotulo">Tipo de conta</dt><dd>@string.Join(" e ", _dados.Papeis)</dd></div>
+            @* Todo personal também tem o papel Aluno (para os próprios treinos): basta mostrar "Personal". *@
+            <div><dt class="rotulo">Tipo de conta</dt><dd>@string.Join(" e ", _dados.Papeis.Where(p => p != "Aluno" || !_dados.Papeis.Contains("Personal")))</dd></div>
             <div>
                 <dt class="rotulo">Verificação em duas etapas</dt>
                 <dd>

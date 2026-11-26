@@ -25,6 +25,7 @@ public sealed class FiltrosDeDonoTests
         await using var db = BancoDeTestes.NovoContexto(c.PersonalA);
 
         (await db.TemplatesTreino.Select(t => t.Id).ToListAsync(Ct)).ShouldBe([c.TemplateA]);
+        (await db.PresetsDeSeries.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PresetA]);
         (await db.Treinos.Select(t => t.Id).ToListAsync(Ct)).ShouldBe([c.TreinoX]);
         (await db.SessoesTreino.Select(s => s.Id).ToListAsync(Ct)).ShouldBe([c.SessaoX]);
         (await db.RegistrosSerie.Select(r => r.SessaoId).Distinct().ToListAsync(Ct)).ShouldBe([c.SessaoX]);
@@ -39,6 +40,36 @@ public sealed class FiltrosDeDonoTests
         exercicios.ShouldContain(c.ExercicioDoCatalogo);
         exercicios.ShouldContain(c.ExercicioDeA);
         exercicios.ShouldNotContain(c.ExercicioDeB);
+    }
+
+    [Fact]
+    public async Task Personal_sem_2FA_nao_ve_os_dados_dos_alunos_so_os_proprios()
+    {
+        var c = await CriarCenarioAsync();
+        await using var db = BancoDeTestes.NovoContexto(c.PersonalA, comDoisFatores: false);
+
+        (await db.Treinos.AnyAsync(Ct)).ShouldBeFalse();
+        (await db.SessoesTreino.AnyAsync(Ct)).ShouldBeFalse();
+        (await db.RegistrosSerie.AnyAsync(Ct)).ShouldBeFalse();
+        (await db.AnotacoesDoAluno.AnyAsync(Ct)).ShouldBeFalse();
+        (await db.PerfisAluno.AnyAsync(Ct)).ShouldBeFalse();
+        (await db.VinculosPersonalAluno.AnyAsync(Ct)).ShouldBeFalse();
+
+        // O que é do próprio personal continua visível.
+        (await db.TemplatesTreino.Select(t => t.Id).ToListAsync(Ct)).ShouldBe([c.TemplateA]);
+        (await db.PresetsDeSeries.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PresetA]);
+        (await db.PerfisPersonal.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PersonalA]);
+    }
+
+    [Fact]
+    public async Task Aluno_sem_2FA_continua_vendo_os_proprios_dados()
+    {
+        var c = await CriarCenarioAsync();
+        await using var db = BancoDeTestes.NovoContexto(c.AlunoX, comDoisFatores: false);
+
+        (await db.Treinos.Select(t => t.Id).ToListAsync(Ct)).ShouldBe([c.TreinoX]);
+        (await db.SessoesTreino.Select(s => s.Id).ToListAsync(Ct)).ShouldBe([c.SessaoX]);
+        (await db.PerfisPersonal.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PersonalA]);
     }
 
     [Fact]
@@ -61,6 +92,7 @@ public sealed class FiltrosDeDonoTests
         (await db.SessoesTreino.Select(s => s.Id).ToListAsync(Ct)).ShouldBe([c.SessaoX]);
         (await db.AnotacoesDoAluno.Select(a => a.Id).ToListAsync(Ct)).ShouldBe([c.AnotacaoX]);
         (await db.TemplatesTreino.AnyAsync(Ct)).ShouldBeFalse();
+        (await db.PresetsDeSeries.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PresetX]);
         (await db.PerfisPersonal.Select(p => p.Id).ToListAsync(Ct)).ShouldBe([c.PersonalA]);
         (await db.PerfisAluno.Select(a => a.Id).ToListAsync(Ct)).ShouldBe([c.AlunoX]);
 
@@ -104,12 +136,13 @@ public sealed class FiltrosDeDonoTests
         (await db.TemplatesTreino.SingleOrDefaultAsync(t => t.Id == c.TemplateA, Ct)).ShouldBeNull();
         (await db.SessoesTreino.SingleOrDefaultAsync(s => s.Id == c.SessaoX, Ct)).ShouldBeNull();
         (await db.ConvitesAluno.SingleOrDefaultAsync(cv => cv.Id == c.ConviteA, Ct)).ShouldBeNull();
+        (await db.PresetsDeSeries.SingleOrDefaultAsync(p => p.Id == c.PresetA, Ct)).ShouldBeNull();
     }
 
     private sealed record Ids(
         Guid PersonalA, Guid PersonalB, Guid AlunoX, Guid AlunoY, Guid AlunoZ,
         Guid ExercicioDoCatalogo, Guid ExercicioDeA, Guid ExercicioDeB,
-        Guid TemplateA, Guid TreinoX, Guid TreinoY, Guid TreinoZ, Guid SessaoX, Guid ConviteA, Guid AnotacaoX);
+        Guid TemplateA, Guid TreinoX, Guid TreinoY, Guid TreinoZ, Guid SessaoX, Guid ConviteA, Guid AnotacaoX, Guid PresetA, Guid PresetX);
 
     private static async Task<Ids> CriarCenarioAsync()
     {
@@ -141,8 +174,10 @@ public sealed class FiltrosDeDonoTests
 
         var anotacaoX = AnotacaoDoAluno.Criar(Guid.CreateVersion7(), x.Id, treinoX.Id, exA.Id, "Banco na 3", Agora);
         var anotacaoY = AnotacaoDoAluno.Criar(Guid.CreateVersion7(), y.Id, treinoY.Id, catalogo.Id, "Pegada aberta", Agora);
+        var presetA = PresetDeSeries.Criar(Guid.CreateVersion7(), a.Id, "Preset de A", [Serie.Criar(TipoSerie.Trabalho, 10, 10, 60)]);
+        var presetX = PresetDeSeries.Criar(Guid.CreateVersion7(), x.Id, "Preset de X", [Serie.Criar(TipoSerie.Trabalho, 5, 5, 120)]);
 
-        db.AddRange(exA, exB, vinculoZ, templateA, templateB, treinoX, treinoY, treinoZ, sessaoX, sessaoY, conviteA, conviteB, anotacaoX, anotacaoY);
+        db.AddRange(exA, exB, vinculoZ, templateA, templateB, treinoX, treinoY, treinoZ, sessaoX, sessaoY, conviteA, conviteB, anotacaoX, anotacaoY, presetA, presetX);
         db.AddRange(
             VinculoPersonalAluno.Criar(Guid.CreateVersion7(), a.Id, x.Id, Agora.AddMonths(-2)),
             VinculoPersonalAluno.Criar(Guid.CreateVersion7(), b.Id, y.Id, Agora.AddMonths(-2)));
@@ -150,6 +185,6 @@ public sealed class FiltrosDeDonoTests
 
         return new Ids(
             a.Id, b.Id, x.Id, y.Id, z.Id, catalogo.Id, exA.Id, exB.Id,
-            templateA.Id, treinoX.Id, treinoY.Id, treinoZ.Id, sessaoX.Id, conviteA.Id, anotacaoX.Id);
+            templateA.Id, treinoX.Id, treinoY.Id, treinoZ.Id, sessaoX.Id, conviteA.Id, anotacaoX.Id, presetA.Id, presetX.Id);
     }
 }

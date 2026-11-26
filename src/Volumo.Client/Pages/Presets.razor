@@ -1,0 +1,145 @@
+@page "/presets"
+@attribute [Authorize(Roles = "Personal,Aluno")]
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+@* Presets de séries: os prontos do Volumo (só leitura, servem de base) e os da própria conta. *@
+
+<PageTitle>Presets de séries · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <h1>Presets de séries</h1>
+    @if (_editando is null)
+    {
+        <button type="button" class="botao botao-principal" @onclick="() => Editar(null, null, null)">Novo preset</button>
+    }
+</header>
+
+<div class="pilha" style="--espaco: 24px">
+    <p class="secundario">
+        Esquemas de séries para aplicar num exercício de uma vez, no construtor de treino ("Aplicar preset").
+        Guardam o tipo, as repetições e o descanso de cada série; a carga fica em cada treino.
+    </p>
+
+    @if (_editando is { } edicao)
+    {
+        <EditorDePreset @key="edicao" Titulo="@(edicao.Id is null ? "Novo preset" : "Editar preset")" NomeInicial="@edicao.Nome"
+                        SeriesIniciais="edicao.Series" OnSalvar="SalvarAsync" OnCancelar="() => _editando = null" Salvando="_salvando" Erro="@_erroEdicao" />
+    }
+
+    @if (_presets is null)
+    {
+        <p class="secundario">@(_erro ?? "Carregando.")</p>
+    }
+    else
+    {
+        var proprios = _presets.Where(p => !p.Pronto).ToList();
+        <section class="painel">
+            <div class="painel-cabecalho"><h2>Seus presets</h2></div>
+            @if (proprios.Count == 0)
+            {
+                <p class="lista-vazia">Nenhum ainda. Crie do zero, a partir de um pronto ou, no construtor, com "Salvar como preset".</p>
+            }
+            else
+            {
+                <ul class="lista">
+                    @foreach (var preset in proprios)
+                    {
+                        <li @key="preset.Id">
+                            <span class="preset">
+                                <span class="treino-nome">@preset.Nome</span>
+                                <span class="secundario numero">@Rotulos.ResumoDoPreset(preset.Series)</span>
+                            </span>
+                            <span class="linha-de-botoes alinhada">
+                                @if (_confirmando == preset.Id)
+                                {
+                                    <button class="botao botao-texto texto-erro" @onclick="() => ArquivarAsync(preset.Id)">Confirmar</button>
+                                    <button class="botao botao-texto" @onclick="() => _confirmando = null">Manter</button>
+                                }
+                                else
+                                {
+                                    <button class="botao botao-texto" @onclick="() => Editar(preset.Id, preset.Nome, preset.Series)">Editar</button>
+                                    <button class="botao botao-texto" @onclick="() => _confirmando = preset.Id">Arquivar</button>
+                                }
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        @if (_erroAcao is not null)
+        {
+            <p class="aviso aviso-erro" role="alert">@_erroAcao</p>
+        }
+
+        <section class="painel">
+            <div class="painel-cabecalho"><h2>Prontos do Volumo</h2></div>
+            <ul class="lista">
+                @foreach (var preset in _presets.Where(p => p.Pronto))
+                {
+                    <li @key="preset.Id">
+                        <span class="preset">
+                            <span class="treino-nome">@preset.Nome</span>
+                            <span class="secundario numero">@Rotulos.ResumoDoPreset(preset.Series) · @Rotulos.Descanso(preset.Series[^1].DescansoSegundos)</span>
+                        </span>
+                        <button class="botao botao-texto" @onclick="() => Editar(null, preset.Nome, preset.Series)">Criar a partir deste</button>
+                    </li>
+                }
+            </ul>
+        </section>
+        <p class="campo-ajuda">Mudar ou arquivar um preset não altera os treinos em que ele já foi aplicado.</p>
+    }
+</div>
+
+@code {
+    private List<PresetDeSeriesSaida>? _presets;
+    private Edicao? _editando;
+    private string? _erro;
+    private string? _erroEdicao;
+    private string? _erroAcao;
+    private Guid? _confirmando;
+    private bool _salvando;
+
+    /// <summary>Preset aberto no editor: Id nulo = novo (do zero ou copiado de um pronto).</summary>
+    private sealed record Edicao(Guid? Id, string? Nome, IReadOnlyList<SerieDoPreset>? Series);
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        var resultado = await Api.GetAsync<List<PresetDeSeriesSaida>>("presets");
+        _presets = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+
+    private void Editar(Guid? id, string? nome, IReadOnlyList<SerieDoPreset>? series)
+    {
+        _editando = new Edicao(id, nome, series);
+        _erroEdicao = null;
+        _confirmando = null;
+    }
+
+    private async Task SalvarAsync(PresetDeSeriesEntrada preset)
+    {
+        _salvando = true;
+        var erro = _editando?.Id is { } id
+            ? (await Api.PutAsync($"presets/{id}", preset)).Erro
+            : (await Api.PostAsync<RecursoCriado>("presets", preset)).Erro;
+        _salvando = false;
+        _erroEdicao = erro;
+        if (erro is null)
+        {
+            _editando = null;
+            await CarregarAsync();
+        }
+    }
+
+    private async Task ArquivarAsync(Guid id)
+    {
+        _confirmando = null;
+        var resultado = await Api.PostAsync($"presets/{id}/inativar");
+        _erroAcao = resultado.Erro;
+        await CarregarAsync();
+    }
+}

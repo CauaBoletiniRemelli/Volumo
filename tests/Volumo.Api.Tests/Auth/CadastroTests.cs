@@ -28,7 +28,8 @@ public sealed class CadastroTests(VolumoApiFactory factory) : IClassFixture<Volu
         usuario.EmailConfirmed.ShouldBeFalse();
         usuario.Id.Version.ShouldBe(7);
         (await db.PerfisPersonal.SingleAsync(p => p.Id == usuario.Id, Ct)).Cref.ShouldNotBeNull();
-        (await db.UserRoles.CountAsync(r => r.UserId == usuario.Id, Ct)).ShouldBe(1);
+        (await db.PerfisAluno.SingleAsync(p => p.Id == usuario.Id, Ct)).Nome.ShouldBe("Personal de Teste"); // o personal também treina
+        (await db.UserRoles.CountAsync(r => r.UserId == usuario.Id, Ct)).ShouldBe(2);
     }
 
     [Fact]

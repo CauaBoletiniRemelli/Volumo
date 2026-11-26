@@ -203,3 +203,37 @@
 .item-cabecalho .item-titulo { flex: 1 1 160px; }
 .item-nome { overflow-wrap: anywhere; }
 .item-acoes { margin-left: auto; }
+
+/* Presets: "+ Série", "Aplicar preset" e "Salvar como preset" na mesma linha (quebram no celular). */
+.series-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; }
+.item-rodape { grid-template-columns: minmax(0, 1fr); }
+
+.aplicar-preset {
+    flex: 1 1 220px;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font: 500 .9rem var(--fonte-texto);
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.aplicar-preset:hover { border-color: var(--linha-forte); }
+.aplicar-preset:focus { outline: none; border-color: var(--acao); }
+
+.preset-aplicado { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; }
+.preset-aplicado .botao-texto { min-height: 32px; color: var(--acao); }
+
+.salvar-preset {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+}

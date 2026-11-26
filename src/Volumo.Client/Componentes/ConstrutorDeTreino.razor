@@ -2,6 +2,7 @@
    Duas abas no mesmo plano: musculação e cardio. Cada exercício recolhe para a lista não crescer demais. *@
 @using System.Globalization
 @using Volumo.Shared.Treinos
+@inject ApiVolumo Api
 
 <div class="construtor pilha" style="--espaco: 24px">
     <div class="campo nome-do-plano">
@@ -106,7 +107,50 @@
                                 </div>
 
                                 <div class="item-rodape">
-                                    <button type="button" class="botao botao-texto" disabled="@(item.Series.Count >= MaximoSeries)" @onclick="() => AdicionarSerie(item)">+ Série</button>
+                                    <div class="series-acoes">
+                                        <button type="button" class="botao botao-texto" disabled="@(item.Series.Count >= MaximoSeries)" @onclick="() => AdicionarSerie(item)">+ Série</button>
+                                        @if (_presets is { Count: > 0 })
+                                        {
+                                            @* Recriado a cada aplicação (@key) para voltar a mostrar "Aplicar preset". *@
+                                            <select class="aplicar-preset" @key="item.Aplicacoes" aria-label="Aplicar preset de séries em @item.Nome"
+                                                    @onchange="e => AplicarPreset(item, e.Value as string)">
+                                                <option value="">Aplicar preset</option>
+                                                @foreach (var preset in _presets)
+                                                {
+                                                    <option value="@preset.Id">@preset.Nome · @Rotulos.ResumoDoPreset(preset.Series)</option>
+                                                }
+                                            </select>
+                                        }
+                                        @if (!item.SalvandoPreset)
+                                        {
+                                            <button type="button" class="botao botao-texto" @onclick="() => AbrirSalvarPreset(item)">Salvar como preset</button>
+                                        }
+                                    </div>
+                                    @if (item.SeriesAntesDoPreset is not null)
+                                    {
+                                        <p class="campo-ajuda preset-aplicado" role="status">
+                                            Séries trocadas pelo preset.
+                                            <button type="button" class="botao botao-texto" @onclick="() => DesfazerPreset(item)">Desfazer</button>
+                                        </p>
+                                    }
+                                    @if (item.SalvandoPreset)
+                                    {
+                                        <div class="salvar-preset">
+                                            <div class="campo">
+                                                <label class="rotulo" for="preset-nome-@indice">Nome do preset</label>
+                                                <input id="preset-nome-@indice" maxlength="60" placeholder="Pirâmide do peito" @bind="item.NomeDoPreset" />
+                                            </div>
+                                            <div class="linha-de-botoes">
+                                                <button type="button" class="botao botao-principal" disabled="@_salvandoPreset" @onclick="() => SalvarPresetAsync(item)">Salvar preset</button>
+                                                <button type="button" class="botao" @onclick="() => item.SalvandoPreset = false">Cancelar</button>
+                                            </div>
+                                            <p class="campo-ajuda">Guarda o tipo, as repetições e o descanso destas séries (sem a carga) para usar em outros exercícios.</p>
+                                        </div>
+                                    }
+                                    @if (item.MensagemDoPreset is { } mensagem)
+                                    {
+                                        <p class="aviso @(item.PresetSalvo ? "aviso-ok" : "aviso-erro")" role="status">@mensagem</p>
+                                    }
                                     <div class="campo observacao">
                                         <label class="rotulo" for="obs-@indice">Observação</label>
                                         <input id="obs-@indice" maxlength="500" placeholder="Cadência, pegada, ajuste do aparelho..." @bind="item.Observacao" />
@@ -125,7 +169,7 @@
 
             @if (_buscando)
             {
-                <BuscaDeExercicio SemGrupo="GrupoMuscular.Cardio" OnEscolher="AdicionarExercicio" OnFechar="() => _buscando = false" />
+                <BuscaDeExercicio SemGrupo="GrupoMuscular.Cardio" PodeCriar="PodeCriarExercicio" OnEscolher="AdicionarExercicio" OnFechar="() => _buscando = false" />
             }
             else if (_itens.Count < MaximoItens)
             {
@@ -153,7 +197,7 @@
                             </label>
                         }
                     </div>
-                    <p class="campo-ajuda">O aluno vê a sua recomendação ao começar o treino e ainda pode trocar a ordem.</p>
+                    <p class="campo-ajuda">@(DoProprioAluno ? "Aparece como lembrete ao começar o treino; dá para trocar na hora." : "O aluno vê a sua recomendação ao começar o treino e ainda pode trocar a ordem.")</p>
                 </fieldset>
             }
 
@@ -189,7 +233,7 @@
 
             @if (_buscandoCardio)
             {
-                <BuscaDeExercicio Titulo="Adicionar cardio" SomenteGrupo="GrupoMuscular.Cardio" OnEscolher="AdicionarCardio" OnFechar="() => _buscandoCardio = false" />
+                <BuscaDeExercicio Titulo="Adicionar cardio" SomenteGrupo="GrupoMuscular.Cardio" PodeCriar="PodeCriarExercicio" OnEscolher="AdicionarCardio" OnFechar="() => _buscandoCardio = false" />
             }
             else if (_cardios.Count < MaximoCardios)
             {
@@ -229,9 +273,19 @@
     private bool _buscandoCardio;
     private string? _erroLocal;
     private bool _carregou;
+    private List<PresetDeSeriesSaida>? _presets;
+    private bool _salvandoPreset;
 
     [Parameter]
     public string? NomeInicial { get; set; }
+
+    /// <summary>Mostra "Criar exercício" na busca (exercício personalizado é só do personal).</summary>
+    [Parameter]
+    public bool PodeCriarExercicio { get; set; } = true;
+
+    /// <summary>Treino que a própria pessoa vai fazer (aluno ou personal nos próprios treinos): ajusta os textos.</summary>
+    [Parameter]
+    public bool DoProprioAluno { get; set; }
 
     [Parameter]
     public IReadOnlyList<ItemDoPlanoSaida>? ItensIniciais { get; set; }
@@ -289,6 +343,74 @@
         }
     }
 
+    /// <summary>Sem os presets (erro ou sem rede), o construtor funciona igual, só sem "Aplicar preset".</summary>
+    protected override async Task OnInitializedAsync() => _presets = (await Api.GetAsync<List<PresetDeSeriesSaida>>("presets")).Valor;
+
+    /// <summary>Troca as séries do exercício pelas do preset (sem carga). "Desfazer" volta as anteriores.</summary>
+    private void AplicarPreset(ItemEditavel item, string? id)
+    {
+        item.Aplicacoes++;
+        if (_presets?.Find(p => p.Id.ToString() == id) is not { } preset)
+        {
+            return;
+        }
+
+        item.SeriesAntesDoPreset = item.Series;
+        item.Series = [.. preset.Series.Select(s => new SerieEditavel
+        {
+            Tipo = s.Tipo,
+            RepeticoesMinimas = s.RepeticoesMinimas,
+            RepeticoesMaximas = s.RepeticoesMaximas,
+            DescansoSegundos = s.DescansoSegundos,
+        })];
+        item.MensagemDoPreset = null;
+        _erroLocal = null;
+    }
+
+    private static void DesfazerPreset(ItemEditavel item)
+    {
+        item.Series = item.SeriesAntesDoPreset ?? item.Series;
+        item.SeriesAntesDoPreset = null;
+    }
+
+    private static void AbrirSalvarPreset(ItemEditavel item)
+    {
+        item.SalvandoPreset = true;
+        item.MensagemDoPreset = null;
+    }
+
+    private async Task SalvarPresetAsync(ItemEditavel item)
+    {
+        var problema = string.IsNullOrWhiteSpace(item.NomeDoPreset) ? "Dê um nome ao preset." : null;
+        for (var s = 0; problema is null && s < item.Series.Count; s++)
+        {
+            problema = ProblemaNaSerie(item.Series[s]) is { } p ? $"Série {s + 1}: {p}" : null;
+        }
+
+        if (problema is not null)
+        {
+            (item.MensagemDoPreset, item.PresetSalvo) = (problema, false);
+            return;
+        }
+
+        _salvandoPreset = true;
+        var entrada = new PresetDeSeriesEntrada(
+            item.NomeDoPreset!.Trim(),
+            [.. item.Series.Select(s => new SerieDoPreset(s.Tipo, s.RepeticoesMinimas, s.RepeticoesMaximas, s.DescansoSegundos))]);
+        var resultado = await Api.PostAsync<RecursoCriado>("presets", entrada);
+        _salvandoPreset = false;
+        if (!resultado.Ok)
+        {
+            (item.MensagemDoPreset, item.PresetSalvo) = (resultado.Erro, false);
+            return;
+        }
+
+        (item.MensagemDoPreset, item.PresetSalvo) = ($"Preset \"{entrada.Nome}\" salvo. Ele já aparece em \"Aplicar preset\".", true);
+        item.SalvandoPreset = false;
+        item.NomeDoPreset = null;
+        _presets = (await Api.GetAsync<List<PresetDeSeriesSaida>>("presets")).Valor ?? _presets;
+    }
+
     private void TrocarAba(Aba aba)
     {
         _aba = aba;
@@ -317,8 +439,11 @@
         _erroLocal = null;
     }
 
-    private static void AdicionarSerie(ItemEditavel item) =>
+    private static void AdicionarSerie(ItemEditavel item)
+    {
+        item.SeriesAntesDoPreset = null;
         item.Series.Add(item.Series.Count > 0 ? item.Series[^1].Copia() : SerieEditavel.Padrao());
+    }
 
     private static void Mover<T>(List<T> lista, int indice, int direcao)
     {
@@ -452,9 +577,23 @@
         /// <summary>Foto do exercício (só para ver; não vai no plano salvo).</summary>
         public string? FotoUrl { get; init; }
 
-        public List<SerieEditavel> Series { get; init; } = [];
+        public List<SerieEditavel> Series { get; set; } = [];
 
         public bool Expandido { get; set; }
+
+        /// <summary>Séries de antes do último preset aplicado (para "Desfazer"); nulo depois de desfazer.</summary>
+        public List<SerieEditavel>? SeriesAntesDoPreset { get; set; }
+
+        /// <summary>Muda a cada aplicação, para o seletor de preset voltar ao texto inicial.</summary>
+        public int Aplicacoes { get; set; }
+
+        public bool SalvandoPreset { get; set; }
+
+        public string? NomeDoPreset { get; set; }
+
+        public string? MensagemDoPreset { get; set; }
+
+        public bool PresetSalvo { get; set; }
     }
 
     private sealed class CardioEditavel(Guid exercicioId, string nome)

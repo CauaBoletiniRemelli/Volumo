@@ -62,7 +62,8 @@ public sealed class AcompanhamentoDoAlunoTests(VolumoApiFactory factory) : IClas
         var corpo = new ObservacaoDoAlunoEntrada("Texto");
 
         (await EnviarAsync(client, HttpMethod.Put, Caminho(aluno), outro.Token, corpo: corpo)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await EnviarAsync(client, HttpMethod.Put, Caminho(aluno), aluno.TokenPersonal, corpo: corpo)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        // O personal também tem perfil de aluno (próprios treinos), mas a rota só acha os treinos dele mesmo.
+        (await EnviarAsync(client, HttpMethod.Put, Caminho(aluno), aluno.TokenPersonal, corpo: corpo)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await EnviarAsync(client, HttpMethod.Put, $"/treinos/{aluno.TreinoId}/exercicios/{Guid.CreateVersion7()}/observacao-do-aluno", aluno.Token, corpo: corpo))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await EnviarAsync(client, HttpMethod.Put, Caminho(aluno), aluno.Token, corpo: new ObservacaoDoAlunoEntrada(new string('x', 501))))

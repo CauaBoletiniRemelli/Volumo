@@ -132,8 +132,9 @@ public sealed class SincronizacaoDeSessoesTests(VolumoApiFactory factory) : ICla
         var lote = new LoteDeSessoes([Sessao(aluno.TreinoId, DateTimeOffset.UtcNow.AddMinutes(-10), null)]);
 
         (await EnviarAsync(client, HttpMethod.Post, "/sessoes/sincronizar", null, corpo: lote)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        (await EnviarAsync(client, HttpMethod.Post, "/sessoes/sincronizar", aluno.TokenPersonal, corpo: lote)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await EnviarAsync(client, HttpMethod.Get, "/sessoes", aluno.TokenPersonal)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var semPapelDeAluno = await AdminSemOutrosPapeisAsync(client, factory);
+        (await EnviarAsync(client, HttpMethod.Post, "/sessoes/sincronizar", semPapelDeAluno, corpo: lote)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await EnviarAsync(client, HttpMethod.Get, "/sessoes", semPapelDeAluno)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await EnviarAsync(client, HttpMethod.Get, $"/sessoes/{Guid.CreateVersion7()}", aluno.Token)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         var grande = new LoteDeSessoes([.. Enumerable.Range(0, 21).Select(_ => Sessao(aluno.TreinoId, DateTimeOffset.UtcNow.AddMinutes(-10), null))]);

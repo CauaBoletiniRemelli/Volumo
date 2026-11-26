@@ -7,4 +7,8 @@ public sealed class HttpAccessContext(IHttpContextAccessor httpContextAccessor) 
 {
     public Guid? UsuarioId =>
         httpContextAccessor.HttpContext?.User is { Identity.IsAuthenticated: true } user ? user.UsuarioId() : null;
+
+    public bool ComDoisFatores =>
+        httpContextAccessor.HttpContext?.User is { Identity.IsAuthenticated: true } user
+        && user.HasClaim(VolumoClaims.AuthenticationMethods, VolumoClaims.MultiFactor);
 }

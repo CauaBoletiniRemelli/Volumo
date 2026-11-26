@@ -4,12 +4,18 @@
 @using Volumo.Shared.Treinos
 @inject TreinosDoAluno Treinos
 @inject NavigationManager Navegacao
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
 
 <PageTitle>@(_treino?.Nome ?? "Treino") · Volumo</PageTitle>
 
 <header class="cabecalho-pagina">
-    <p class="rotulo"><a href="treinos">Treinos</a></p>
+    <p class="rotulo"><a href="treinos?todos=true">Treinos</a></p>
     <h1>@(_treino?.Nome ?? "Treino")</h1>
+    @if (_treino is not null && Rotulos.Dias(_treino.DiasOuVazio) is { } dias)
+    {
+        <p class="secundario">@(Proprio ? "Marcado para" : "Seu personal marcou para") @dias</p>
+    }
 </header>
 
 @if (_treino is null)
@@ -43,6 +49,8 @@ else
                 <p class="rotulo">
                     @(momento switch
                     {
+                        MomentoDoCardio.Antes when Proprio => "Você planejou o cardio antes",
+                        MomentoDoCardio.Depois when Proprio => "Você planejou o cardio depois",
                         MomentoDoCardio.Antes => "Seu personal recomenda o cardio antes",
                         MomentoDoCardio.Depois => "Seu personal recomenda o cardio depois",
                         _ => "Escolha por onde começar",
@@ -87,7 +95,7 @@ else
                         }
                         @if (!string.IsNullOrWhiteSpace(item.Observacao))
                         {
-                            <p><span class="rotulo">Personal</span> <span class="secundario">@item.Observacao</span></p>
+                            <p><span class="rotulo">@(Proprio ? "Observação" : "Personal")</span> <span class="secundario">@item.Observacao</span></p>
                         }
                         <ObservacaoDoAluno TreinoId="TreinoId" ExercicioId="item.ExercicioId" Texto="@item.ObservacaoDoAluno"
                                            TextoChanged="texto => AtualizarObservacao(item, texto)" />
@@ -120,6 +128,40 @@ else
                 <ExportarArquivo Titulo="Exportar o treino (exercícios e evolução)" Caminho="@($"treinos/{TreinoId}/exportar")" NomeDoArquivo="@_treino.Nome" />
             </div>
         </section>
+
+        @if (Proprio && !Sessao.Offline)
+        {
+            @* Treino montado pela própria pessoa: ela mesma altera e arquiva (o prescrito, só o personal). *@
+            <section class="painel" aria-labelledby="dias-titulo">
+                <div class="painel-cabecalho"><h3 id="dias-titulo">Dias da semana</h3></div>
+                <div class="painel-corpo pilha" style="--espaco: 10px">
+                    <EscolhaDeDias TreinoId="TreinoId" Nome="@_treino.Nome" Dias="_treino.DiasOuVazio" DiasChanged="AtualizarDiasAsync" />
+                    <p class="campo-ajuda">Os dias marcados aparecem no calendário e o treino ganha a etiqueta "Hoje" na lista.</p>
+                </div>
+            </section>
+
+            <section class="painel">
+                <div class="painel-corpo pilha" style="--espaco: 12px">
+                    <div class="linha-de-botoes">
+                        <a class="botao" href="treinos/@TreinoId/editar">Editar treino</a>
+                        @if (_confirmandoArquivar)
+                        {
+                            <button class="botao botao-texto texto-erro" disabled="@_arquivando" @onclick="ArquivarAsync">Confirmar</button>
+                            <button class="botao botao-texto" @onclick="() => _confirmandoArquivar = false">Manter</button>
+                        }
+                        else
+                        {
+                            <button class="botao botao-texto" @onclick="() => _confirmandoArquivar = true">Arquivar</button>
+                        }
+                    </div>
+                    @if (_erroArquivar is not null)
+                    {
+                        <p class="aviso aviso-erro" role="alert">@_erroArquivar</p>
+                    }
+                    <p class="campo-ajuda">Arquivar tira o treino da lista. Os treinos que você já registrou continuam no histórico.</p>
+                </div>
+            </section>
+        }
     </div>
 }
 
@@ -129,9 +171,28 @@ else
     private EvolucaoDoTreino? _evolucao;
     private string? _erro;
     private string? _erroEvolucao;
+    private bool _confirmandoArquivar;
+    private bool _arquivando;
+    private string? _erroArquivar;
 
     [Parameter]
     public Guid TreinoId { get; set; }
+
+    /// <summary>Montado pela própria pessoa (sem personal): ela altera e arquiva.</summary>
+    private bool Proprio => _treino is { PersonalId: null };
+
+    private async Task ArquivarAsync()
+    {
+        _arquivando = true;
+        var resultado = await Api.PostAsync($"treinos/{TreinoId}/inativar");
+        _arquivando = false;
+        _erroArquivar = resultado.Erro;
+        if (resultado.Ok)
+        {
+            await Treinos.EsquecerCopiaDoTreinoAsync(TreinoId);
+            Navegacao.NavigateTo("treinos?todos=true");
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -150,6 +211,13 @@ else
 
     private void AtualizarObservacao(ItemDoPlanoSaida item, string? texto) =>
         _treino = _treino! with { Itens = [.. _treino.Itens.Select(i => i.Id == item.Id ? i with { ObservacaoDoAluno = texto } : i)] };
+
+    /// <summary>Dias gravados na API: a lista e o detalhe guardados no aparelho vencem para mostrar os novos.</summary>
+    private async Task AtualizarDiasAsync(IReadOnlyList<DayOfWeek> dias)
+    {
+        _treino = _treino! with { Dias = dias };
+        await Treinos.EsquecerCopiaDoTreinoAsync(TreinoId);
+    }
 
     private async Task DescartarOutroAsync()
     {

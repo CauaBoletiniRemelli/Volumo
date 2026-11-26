@@ -8,6 +8,12 @@ public static class Policies
 
     public const string Aluno = "Aluno";
 
+    /// <summary>
+    /// Quem monta treinos (personal ou aluno), para recursos da própria conta, como os presets de séries.
+    /// Não exige 2FA: não dá acesso a dados de alunos (esses continuam atrás de <see cref="Personal"/>).
+    /// </summary>
+    public const string PersonalOuAluno = "PersonalOuAluno";
+
     /// <summary>Qualquer conta logada e ativa (aluno ou personal), para recursos dos dois lados, como ver um treino.</summary>
     public const string ContaAtiva = "ContaAtiva";
 

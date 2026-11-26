@@ -97,6 +97,25 @@ public static class Rotulos
     public static string Repeticoes(int minimo, int maximo) =>
         minimo == maximo ? minimo.ToString(PtBr) : $"{minimo.ToString(PtBr)}–{maximo.ToString(PtBr)}";
 
+    /// <summary>Séries de um preset em uma linha: "4 × 8–12", "10 · 8 · 5 · 3" ou "1 aquecimento + 3 × 8–12".</summary>
+    public static string ResumoDoPreset(IReadOnlyList<SerieDoPreset> series)
+    {
+        var partes = series.Where(s => s.Tipo != TipoDeSerie.Trabalho)
+            .GroupBy(s => s.Tipo)
+            .Select(g => $"{g.Count()} {De(g.Key).ToLower(PtBr)}")
+            .ToList();
+        var trabalho = series.Where(s => s.Tipo == TipoDeSerie.Trabalho).ToList();
+        if (trabalho.Count > 0)
+        {
+            var primeira = trabalho[0];
+            partes.Add(trabalho.TrueForAll(s => s.RepeticoesMinimas == primeira.RepeticoesMinimas && s.RepeticoesMaximas == primeira.RepeticoesMaximas)
+                ? $"{trabalho.Count} × {Repeticoes(primeira.RepeticoesMinimas, primeira.RepeticoesMaximas)}"
+                : string.Join(" · ", trabalho.Select(s => Repeticoes(s.RepeticoesMinimas, s.RepeticoesMaximas))));
+        }
+
+        return string.Join(" + ", partes);
+    }
+
     public static string Descanso(int segundos) => segundos switch
     {
         0 => "sem descanso",
@@ -104,6 +123,31 @@ public static class Rotulos
         _ when segundos % 60 == 0 => $"{segundos / 60} min",
         _ => $"{segundos / 60} min {segundos % 60} s",
     };
+
+    /// <summary>Semana de treino começando na segunda (calendário e escolha de dias).</summary>
+    public static readonly IReadOnlyList<DayOfWeek> Semana =
+        [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+
+    // Nomes escritos aqui: o app não carrega os dados de cultura completos (BlazorWebAssemblyLoadAllGlobalizationData).
+    private static readonly string[] NomesDosDias = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+    private static readonly string[] NomesDosMeses =
+        ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+    /// <summary>"seg", "ter"...</summary>
+    public static string DiaCurto(DayOfWeek dia) => NomesDosDias[(int)dia][..3];
+
+    public static string DiaPorExtenso(DayOfWeek dia) => NomesDosDias[(int)dia];
+
+    /// <summary>"seg · qui" na ordem da semana; nulo quando o treino não tem dia marcado.</summary>
+    public static string? Dias(IReadOnlyList<DayOfWeek> dias) =>
+        dias.Count == 0 ? null : string.Join(" · ", Semana.Where(dias.Contains).Select(DiaCurto));
+
+    /// <summary>"outubro de 2026".</summary>
+    public static string Mes(DateOnly mes) => $"{NomesDosMeses[mes.Month - 1]} de {mes.Year}";
+
+    /// <summary>"terça, 28 de outubro".</summary>
+    public static string DiaDoMes(DateOnly dia) => $"{DiaPorExtenso(dia.DayOfWeek)}, {dia.Day} de {NomesDosMeses[dia.Month - 1]}";
 
     public static string Data(DateTimeOffset quando) => quando.ToLocalTime().ToString("dd/MM/yy", PtBr);
 

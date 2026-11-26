@@ -136,20 +136,49 @@ public sealed record TemplateDetalhe(
     public IReadOnlyList<CardioDoPlanoSaida> CardiosOuVazio => Cardios ?? [];
 }
 
-public sealed record TreinoResumo(Guid Id, string Nome, Guid? TemplateOrigemId, int QuantidadeDeExercicios);
+/// <param name="MontadoPeloAluno">Treino que o próprio aluno montou (só ele altera); falso nos prescritos pelo personal.</param>
+/// <param name="Dias">Dias da semana em que o treino está marcado; nulo só em cópias antigas no aparelho (use <see cref="DiasOuVazio"/>).</param>
+public sealed record TreinoResumo(
+    Guid Id, string Nome, Guid? TemplateOrigemId, int QuantidadeDeExercicios, bool MontadoPeloAluno = false, IReadOnlyList<DayOfWeek>? Dias = null)
+{
+    [JsonIgnore]
+    public IReadOnlyList<DayOfWeek> DiasOuVazio => Dias ?? [];
+}
 
 /// <param name="Cardios">Nulo só em cópias antigas guardadas no aparelho; use <see cref="CardiosOuVazio"/>.</param>
+/// <param name="Dias">Como em <see cref="TreinoResumo.Dias"/>.</param>
 public sealed record TreinoDetalhe(
     Guid Id, string Nome, Guid AlunoId, Guid? PersonalId, IReadOnlyList<ItemDoPlanoSaida> Itens,
-    IReadOnlyList<CardioDoPlanoSaida>? Cardios = null, MomentoDoCardio MomentoDoCardio = MomentoDoCardio.Depois)
+    IReadOnlyList<CardioDoPlanoSaida>? Cardios = null, MomentoDoCardio MomentoDoCardio = MomentoDoCardio.Depois,
+    IReadOnlyList<DayOfWeek>? Dias = null)
 {
     [JsonIgnore]
     public IReadOnlyList<CardioDoPlanoSaida> CardiosOuVazio => Cardios ?? [];
+
+    [JsonIgnore]
+    public IReadOnlyList<DayOfWeek> DiasOuVazio => Dias ?? [];
 }
+
+/// <summary>Dias da semana do treino (substitui os anteriores; lista vazia desmarca todos).</summary>
+public sealed record DiasDoTreino([Required, MaxLength(7)] IReadOnlyList<DayOfWeek> Dias);
 
 public sealed record AtribuicaoDeTemplate([Required] Guid AlunoId);
 
 /// <summary>Todos os treinos ativos do aluno, na ordem em que devem aparecer para ele.</summary>
 public sealed record OrdemDosTreinos([Required, MaxLength(100)] IReadOnlyList<Guid> TreinoIds);
+
+/// <summary>Série de um preset: só a estrutura, sem carga (a carga fica no treino).</summary>
+public sealed record SerieDoPreset(
+    TipoDeSerie Tipo,
+    [Range(1, 100)] int RepeticoesMinimas,
+    [Range(1, 100)] int RepeticoesMaximas,
+    [Range(0, 900)] int DescansoSegundos);
+
+public sealed record PresetDeSeriesEntrada(
+    [Required, StringLength(60)] string Nome,
+    [Required, MinLength(1), MaxLength(20)] IReadOnlyList<SerieDoPreset> Series);
+
+/// <param name="Pronto">Preset da plataforma: dá para aplicar, mas não para alterar.</param>
+public sealed record PresetDeSeriesSaida(Guid Id, string Nome, bool Pronto, IReadOnlyList<SerieDoPreset> Series);
 
 public sealed record RecursoCriado(Guid Id);

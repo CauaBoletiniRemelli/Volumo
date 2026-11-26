@@ -1,0 +1,19 @@
+.area-de-envio {
+    position: relative;
+    border-radius: var(--raio);
+    outline: 2px dashed transparent;
+    outline-offset: 4px;
+    transition: outline-color .15s;
+}
+
+/* Classe posta pelo volumo.js enquanto um arquivo é arrastado por cima. */
+.area-de-envio.arrastando { outline-color: var(--acao); }
+
+.dica { margin: 8px 0 0; font-size: .85rem; color: var(--texto-3); }
+
+/* No celular não há arrastar nem Ctrl+V: fica só o botão. */
+@media (hover: none) {
+    .dica { display: none; }
+}
+
+label.botao { position: relative; justify-self: start; }

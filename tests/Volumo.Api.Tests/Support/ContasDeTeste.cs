@@ -116,6 +116,26 @@ internal static class ContasDeTeste
         return tokenComDoisFatores;
     }
 
+    /// <summary>
+    /// Conta só com o papel Admin (sem Personal nem Aluno), com 2FA: serve de "papel errado" nas rotas de
+    /// aluno, já que todo personal também tem o papel Aluno. Devolve o token.
+    /// </summary>
+    public static async Task<string> AdminSemOutrosPapeisAsync(HttpClient client, VolumoApiFactory factory)
+    {
+        var email = await PersonalConfirmadoAsync(client, factory);
+        await TornarAdminAsync(factory, email);
+        using (var escopo = factory.Services.CreateScope())
+        {
+            var userManager = escopo.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Volumo.Infrastructure.Identity.Usuario>>();
+            var usuario = await userManager.FindByEmailAsync(email);
+            (await userManager.RemoveFromRolesAsync(usuario!, [Volumo.Domain.Usuarios.Papeis.Personal, Volumo.Domain.Usuarios.Papeis.Aluno])).Succeeded.ShouldBeTrue();
+        }
+
+        var (token, _) = await EntrarAsync(client, email);
+        var (_, _, tokenComDoisFatores, _) = await AtivarDoisFatoresAsync(client, token);
+        return tokenComDoisFatores;
+    }
+
     public static async Task<Guid> IdDoUsuarioAsync(string email)
     {
         await using var db = BancoDeTestes.NovoContexto();

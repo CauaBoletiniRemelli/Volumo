@@ -14,12 +14,19 @@ namespace Volumo.Api.Controllers;
 
 /// <summary>
 /// Treinos dos alunos. O filtro de dono deixa ver: o aluno, os próprios; o personal, os dos alunos
-/// com vínculo ativo. Alterar: só o personal que prescreveu, enquanto o vínculo durar.
+/// com vínculo ativo. Alterar: o treino prescrito, só o personal que prescreveu (com 2FA), enquanto o
+/// vínculo durar; o montado pelo aluno, só o próprio aluno (inclusive o personal nos próprios treinos).
 /// </summary>
 [ApiController]
 [Route("treinos")]
 public sealed class TreinosController(
-    VolumoDbContext db, PlanMapper mapper, SessionQueries queries, StudentNotes notes, WorkoutExporter exporter, TimeProvider clock) : ControllerBase
+    VolumoDbContext db,
+    PlanMapper mapper,
+    SessionQueries queries,
+    StudentNotes notes,
+    WorkoutExporter exporter,
+    IAuthorizationService authorization,
+    TimeProvider clock) : ControllerBase
 {
     /// <summary>Tela principal do aluno: os treinos ativos dele.</summary>
     [HttpGet]
@@ -29,6 +36,60 @@ public sealed class TreinosController(
         var alunoId = User.UsuarioId()!.Value;
         var treinos = await db.Treinos.AsNoTracking().Where(t => t.AlunoId == alunoId).OrderBy(t => t.Ordem).ThenBy(t => t.Nome).ToListAsync(ct);
         return [.. treinos.Select(ToSummary)];
+    }
+
+    /// <summary>Treino montado pelo próprio aluno (sem personal). Entra no fim da lista dele.</summary>
+    [HttpPost]
+    [Authorize(Policy = Policies.Aluno)]
+    public async Task<ActionResult<RecursoCriado>> CreateMine(PlanoDeTreinoEntrada request, CancellationToken ct)
+    {
+        var plano = await mapper.ToDefinitionsAsync(request, ct);
+        if (plano is null)
+        {
+            return InvalidExercise();
+        }
+
+        var treino = Treino.CriarPeloAluno(Guid.CreateVersion7(), User.UsuarioId()!.Value, request.Nome);
+        plano.ApplyTo(treino);
+        await PlaceAtEndAsync(db, treino, ct);
+        db.Treinos.Add(treino);
+        await db.SaveChangesAsync(ct);
+        return CreatedAtAction(nameof(Get), new { id = treino.Id }, new RecursoCriado(treino.Id));
+    }
+
+    /// <summary>
+    /// Ordem dos treinos que o próprio aluno montou: a lista traz cada um deles uma vez, na nova ordem.
+    /// Eles trocam de lugar entre si; os prescritos pelo personal ficam nas posições que o personal escolheu.
+    /// </summary>
+    [HttpPut("ordem")]
+    [Authorize(Policy = Policies.Aluno)]
+    public async Task<IActionResult> ReorderMine(OrdemDosTreinos request, CancellationToken ct)
+    {
+        var alunoId = User.UsuarioId()!.Value;
+        var lista = await db.Treinos.Where(t => t.AlunoId == alunoId).OrderBy(t => t.Ordem).ThenBy(t => t.Nome).ToListAsync(ct);
+        var proprios = lista.Where(t => t.PersonalId is null).ToList();
+        var mesmosTreinos = request.TreinoIds.Count == proprios.Count
+            && request.TreinoIds.Distinct().Count() == proprios.Count
+            && request.TreinoIds.All(id => proprios.Exists(t => t.Id == id));
+        if (!mesmosTreinos)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "A lista mudou enquanto você reordenava.",
+                detail: "Atualize a página e tente de novo: a nova ordem precisa ter cada treino montado por você uma vez.");
+        }
+
+        // Os próprios ocupam as mesmas vagas, na nova ordem; depois a lista inteira é numerada de 1 a N
+        // (corrige também treinos antigos com ordem 0).
+        var novaOrdem = new Queue<Treino>(request.TreinoIds.Select(id => proprios.Find(p => p.Id == id)!));
+        var resultado = lista.Select(t => t.PersonalId is null ? novaOrdem.Dequeue() : t).ToList();
+        for (var i = 0; i < resultado.Count; i++)
+        {
+            resultado[i].Posicionar(i + 1);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     [HttpGet("{id:guid}")]
@@ -89,7 +150,7 @@ public sealed class TreinosController(
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = Policies.Personal)]
+    [Authorize(Policy = Policies.PersonalOuAluno)]
     public async Task<IActionResult> Update(Guid id, PlanoDeTreinoEntrada request, CancellationToken ct)
     {
         var (treino, problem) = await FindEditableAsync(id, ct);
@@ -101,7 +162,7 @@ public sealed class TreinosController(
         var plano = await mapper.ToDefinitionsAsync(request, ct);
         if (plano is null)
         {
-            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Algum exercício não existe ou não está disponível para você.");
+            return InvalidExercise();
         }
 
         treino!.Renomear(request.Nome);
@@ -110,9 +171,33 @@ public sealed class TreinosController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Dias da semana do treino (Treino A na segunda e na quinta). Quem altera o treino marca os dias: o
+    /// personal nos prescritos, o aluno nos que ele montou.
+    /// </summary>
+    [HttpPut("{id:guid}/dias")]
+    [Authorize(Policy = Policies.PersonalOuAluno)]
+    public async Task<IActionResult> SetDays(Guid id, DiasDoTreino request, CancellationToken ct)
+    {
+        if (!request.Dias.All(Enum.IsDefined))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Dia da semana inválido.");
+        }
+
+        var (treino, problem) = await FindEditableAsync(id, ct);
+        if (problem is not null)
+        {
+            return problem;
+        }
+
+        treino!.MarcarDias(request.Dias.ParaDias());
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     /// <summary>Arquiva o treino: some da lista do aluno; o histórico de sessões continua.</summary>
     [HttpPost("{id:guid}/inativar")]
-    [Authorize(Policy = Policies.Personal)]
+    [Authorize(Policy = Policies.PersonalOuAluno)]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
     {
         var (treino, problem) = await FindEditableAsync(id, ct);
@@ -133,9 +218,12 @@ public sealed class TreinosController(
         treino.Posicionar((ultima ?? 0) + 1);
     }
 
-    internal static TreinoResumo ToSummary(Treino t) => new(t.Id, t.Nome, t.TemplateOrigemId, t.Itens.Count);
+    internal static TreinoResumo ToSummary(Treino t) => new(t.Id, t.Nome, t.TemplateOrigemId, t.Itens.Count, t.PersonalId is null, t.Dias.ParaLista());
 
-    /// <summary>Invisível → 404; visível mas prescrito por outro (ex.: montado pelo aluno) → 403.</summary>
+    /// <summary>
+    /// Invisível → 404. Visível, mas de outro dono → 403: o montado pelo aluno só ele altera; o prescrito,
+    /// só o personal que prescreveu e com 2FA (a mesma exigência das outras rotas de personal).
+    /// </summary>
     private async Task<(Treino? Treino, IActionResult? Problem)> FindEditableAsync(Guid id, CancellationToken ct)
     {
         var treino = await db.Treinos.SingleOrDefaultAsync(t => t.Id == id, ct);
@@ -144,8 +232,24 @@ public sealed class TreinosController(
             return (null, NotFound());
         }
 
-        return treino.PersonalId == User.UsuarioId()
+        var usuarioId = User.UsuarioId();
+        if (treino.PersonalId is null)
+        {
+            return treino.AlunoId == usuarioId
+                ? (treino, null)
+                : (null, Problem(statusCode: StatusCodes.Status403Forbidden, title: "Este treino foi montado pelo aluno: só ele pode alterá-lo."));
+        }
+
+        if (treino.PersonalId != usuarioId)
+        {
+            return (null, Problem(statusCode: StatusCodes.Status403Forbidden, title: "Só quem prescreveu o treino pode alterá-lo."));
+        }
+
+        return (await authorization.AuthorizeAsync(User, Policies.Personal)).Succeeded
             ? (treino, null)
-            : (null, Problem(statusCode: StatusCodes.Status403Forbidden, title: "Só quem prescreveu o treino pode alterá-lo."));
+            : (null, Problem(statusCode: StatusCodes.Status403Forbidden, title: "Ative a verificação em duas etapas para alterar os treinos dos alunos."));
     }
+
+    private ObjectResult InvalidExercise() =>
+        Problem(statusCode: StatusCodes.Status400BadRequest, title: "Algum exercício não existe ou não está disponível para você.");
 }

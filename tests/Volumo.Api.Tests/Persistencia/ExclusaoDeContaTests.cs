@@ -20,7 +20,7 @@ public sealed class ExclusaoDeContaTests(VolumoApiFactory factory) : IClassFixtu
     public async Task Excluir_conta_de_personal_anonimiza_e_preserva_o_que_os_alunos_usam()
     {
         var ct = TestContext.Current.CancellationToken;
-        Guid personalId, alunoId, treinoId, templateId, conviteAceitoId, convitePendenteId, exercicioProprioId;
+        Guid personalId, alunoId, treinoId, templateId, conviteAceitoId, convitePendenteId, exercicioProprioId, presetId;
         await using (var db = BancoDeTestes.NovoContexto())
         {
             var personal = await Cenario.PersonalAsync(db, Cenario.NovoCref("G/SP"));
@@ -34,11 +34,12 @@ public sealed class ExclusaoDeContaTests(VolumoApiFactory factory) : IClassFixtu
             var (conviteAceito, token) = ConviteAluno.Criar(Guid.CreateVersion7(), personal.Id, "aluno@volumo.test", Antes);
             var vinculo = conviteAceito.Aceitar(token, aluno.Id, Antes);
             var (convitePendente, _) = ConviteAluno.Criar(Guid.CreateVersion7(), personal.Id, "outro@volumo.test", Antes);
-            db.AddRange(exercicioProprio, template, treino, conviteAceito, vinculo, convitePendente);
+            var preset = PresetDeSeries.Criar(Guid.CreateVersion7(), personal.Id, "Preset do personal", [Serie.Criar(TipoSerie.Trabalho, 10, 10, 60)]);
+            db.AddRange(exercicioProprio, template, treino, conviteAceito, vinculo, convitePendente, preset);
             db.UserClaims.Add(new IdentityUserClaim<Guid> { UserId = personal.Id, ClaimType = "teste", ClaimValue = "x" });
             await db.SaveChangesAsync(ct);
             (personalId, alunoId, treinoId, templateId) = (personal.Id, aluno.Id, treino.Id, template.Id);
-            (conviteAceitoId, convitePendenteId, exercicioProprioId) = (conviteAceito.Id, convitePendente.Id, exercicioProprio.Id);
+            (conviteAceitoId, convitePendenteId, exercicioProprioId, presetId) = (conviteAceito.Id, convitePendente.Id, exercicioProprio.Id, preset.Id);
         }
 
         (await Excluir(personalId)).ShouldBeTrue();
@@ -66,6 +67,7 @@ public sealed class ExclusaoDeContaTests(VolumoApiFactory factory) : IClassFixtu
 
             (await db.TemplatesTreino.AnyAsync(t => t.Id == templateId, ct)).ShouldBeFalse();
             (await db.Exercicios.AnyAsync(e => e.Id == exercicioProprioId, ct)).ShouldBeFalse();
+            (await db.PresetsDeSeries.AnyAsync(p => p.Id == presetId, ct)).ShouldBeFalse();
 
             // O aluno continua com o treino que o personal prescreveu.
             (await db.Treinos.SingleAsync(t => t.Id == treinoId, ct)).Ativo.ShouldBeTrue();

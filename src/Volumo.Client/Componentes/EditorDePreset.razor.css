@@ -1,0 +1,86 @@
+/* Mesmo desenho das séries do construtor, sem a coluna de carga. */
+.editor h2 { margin: 0; }
+
+.series { display: grid; }
+
+.serie {
+    display: grid;
+    grid-template-columns: 48px minmax(110px, 1.2fr) minmax(120px, 1.3fr) minmax(70px, .8fr) 40px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+}
+
+.serie-titulos {
+    font: 600 .7rem/1 var(--fonte-texto);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--texto-3);
+}
+
+.serie-numero { color: var(--texto-3); }
+.serie-reps { display: flex; align-items: center; gap: 6px; }
+
+.serie input, .serie select {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font: 500 .95rem var(--fonte-numero);
+    font-variant-numeric: tabular-nums;
+}
+
+.serie select { font-family: var(--fonte-texto); }
+.serie input:focus, .serie select:focus { outline: none; border-color: var(--acao); }
+
+.botao-icone {
+    width: 40px;
+    height: 40px;
+    border: 1px solid transparent;
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    font: 500 1.1rem/1 var(--fonte-texto);
+    cursor: pointer;
+}
+
+.botao-icone:hover:not(:disabled) { color: var(--texto); border-color: var(--linha-forte); }
+.botao-icone:disabled { opacity: .3; cursor: default; }
+
+.mais-serie { justify-self: start; min-height: 40px; }
+
+/* Celular: número, tipo e remover em cima; repetições e descanso embaixo. */
+@media (max-width: 639px) {
+    .serie-titulos { display: none; }
+
+    .serie {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-areas:
+            "num tipo tipo tipo tipo rem"
+            "reps reps reps reps desc desc";
+        padding: 10px 0;
+        border-bottom: 1px solid var(--linha);
+    }
+
+    .serie:last-child { border-bottom: 0; }
+    .serie > :nth-child(1) { grid-area: num; }
+    .serie > :nth-child(2) { grid-area: tipo; }
+    .serie > :nth-child(3) { grid-area: reps; flex-wrap: wrap; }
+    .serie > :nth-child(4) { grid-area: desc; display: grid; gap: 4px; }
+    .serie > :nth-child(5) { grid-area: rem; }
+
+    .serie > :nth-child(3)::before { content: "Reps"; flex-basis: 100%; }
+    .serie > :nth-child(4)::before { content: "Descanso (s)"; }
+
+    .serie > :nth-child(n+3)::before {
+        font: 600 .65rem/1 var(--fonte-texto);
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--texto-3);
+    }
+
+    .serie-reps input { flex: 1; min-width: 0; }
+}

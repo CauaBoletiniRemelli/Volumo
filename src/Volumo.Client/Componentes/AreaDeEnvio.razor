@@ -1,0 +1,55 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* Envio de um arquivo por botão, arrastando para a área ou colando (Ctrl+V) na página. *@
+<div class="area-de-envio" @ref="_zona">
+    @ChildContent
+    <p class="dica" aria-hidden="true">Arraste para cá ou cole com Ctrl+V</p>
+</div>
+<label class="botao">
+    @TextoDoBotao
+    <InputFile @ref="_input" class="visualmente-oculto" accept="@Tipos" disabled="@Desabilitado" OnChange="AoEscolher" />
+</label>
+
+@code {
+    private ElementReference _zona;
+    private InputFile? _input;
+    private IJSObjectReference? _ligacao;
+
+    /// <summary>Tipos MIME aceitos, separados por vírgula (o mesmo formato do accept).</summary>
+    [Parameter, EditorRequired] public string Tipos { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string TextoDoBotao { get; set; } = string.Empty;
+
+    [Parameter] public bool Desabilitado { get; set; }
+
+    [Parameter] public EventCallback<InputFileChangeEventArgs> AoEscolher { get; set; }
+
+    /// <summary>Prévia do arquivo atual, mostrada dentro da área de arrastar.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _input?.Element is { } input)
+        {
+            _ligacao = await JS.InvokeAsync<IJSObjectReference>("volumo.areaDeEnvio.ligar", _zona, input);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_ligacao is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _ligacao.InvokeVoidAsync("desligar");
+            await _ligacao.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

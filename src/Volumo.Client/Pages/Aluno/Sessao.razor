@@ -20,7 +20,7 @@
         <IndicadorDeSincronizacao />
         @if (Enviado)
         {
-            <p class="aviso aviso-ok">Enviado. Seu personal já consegue ver.</p>
+            <p class="aviso aviso-ok">@(Proprio ? "Enviado e guardado no seu histórico." : "Enviado. Seu personal já consegue ver.")</p>
             <ExportarArquivo Titulo="Exportar o treino de hoje" Caminho="@($"sessoes/{_idFinalizada}/exportar")"
                              NomeDoArquivo="@($"{_treino.Nome} {resumo.Inicio.ToLocalTime():dd-MM-yyyy}")" />
         }
@@ -28,7 +28,7 @@
         {
             <p class="secundario">A exportação em Excel ou PDF fica disponível assim que o treino for enviado.</p>
         }
-        <a class="botao botao-principal botao-largo botao-grande" href="treinos">Voltar aos treinos</a>
+        <a class="botao botao-principal botao-largo botao-grande" href="treinos?todos=true">Voltar aos treinos</a>
     </section>
 }
 else if (_treino is null || _sessao is null)
@@ -37,7 +37,7 @@ else if (_treino is null || _sessao is null)
         <p class="secundario">@(_erro ?? "Carregando.")</p>
         @if (_erro is not null)
         {
-            <a class="botao" href="treinos">Voltar aos treinos</a>
+            <a class="botao" href="treinos?todos=true">Voltar aos treinos</a>
         }
     </div>
 }
@@ -85,7 +85,7 @@ else
             <dl class="observacoes">
                 @if (!string.IsNullOrWhiteSpace(doPersonal))
                 {
-                    <div><dt class="rotulo">Personal</dt><dd>@doPersonal</dd></div>
+                    <div><dt class="rotulo">@(Proprio ? "Observação" : "Personal")</dt><dd>@doPersonal</dd></div>
                 }
                 @if (!string.IsNullOrWhiteSpace(minha) && !_editandoObservacao)
                 {
@@ -116,7 +116,7 @@ else
                     <label class="campo">
                         <span class="rotulo">Sua observação</span>
                         <textarea rows="3" maxlength="500" placeholder="Banco na posição 3, pegada mais fechada..." @bind="_textoObservacao" @bind:event="oninput"></textarea>
-                        <span class="campo-ajuda">Só você e seu personal veem. A observação do personal continua igual.</span>
+                        <span class="campo-ajuda">@(Proprio ? "Fica guardada neste exercício do treino." : "Só você e seu personal veem. A observação do personal continua igual.")</span>
                     </label>
                     <div class="linha-de-botoes">
                         <button type="button" class="botao botao-principal" @onclick="() => SalvarObservacaoAsync(exercicioId)">Salvar</button>
@@ -202,7 +202,7 @@ else
                     {
                         <div class="registro">
                             <div class="ajuste">
-                                <span class="rotulo">Carga (kg)@(prescrita.CargaKg is not null ? " · recomendada pelo personal" : null)</span>
+                                <span class="rotulo">Carga (kg)@(prescrita.CargaKg is null ? null : Proprio ? " · planejada" : " · recomendada pelo personal")</span>
                                 <div class="ajuste-controles">
                                     <button type="button" class="passo" aria-label="Menos 2,5 kg" @onclick="() => AjustarCarga(-2.5m)">−</button>
                                     <input class="ajuste-valor numero" type="number" inputmode="decimal" min="0" max="1000" step="0.5" aria-label="Carga em kg" @bind="_carga" />
@@ -301,6 +301,9 @@ else
     private const int DescansoPadrao = 90;
 
     private TreinoDetalhe? _treino;
+
+    /// <summary>Treino montado pela própria pessoa: os textos não falam em personal.</summary>
+    private bool Proprio => _treino is { PersonalId: null };
     private List<ItemDoPlanoSaida> _itens = [];
     private List<CardioDoPlanoSaida> _cardios = [];
 

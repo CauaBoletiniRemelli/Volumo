@@ -47,7 +47,7 @@ public sealed class LoginTests(VolumoApiFactory factory) : IClassFixture<VolumoA
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var conta = await response.Content.ReadFromJsonAsync<DadosDaConta>(Ct);
         conta!.Email.ShouldBe(email);
-        conta.Papeis.ShouldBe(["Personal"]);
+        conta.Papeis.ShouldBe(["Personal", "Aluno"], ignoreOrder: true);
     }
 
     [Fact]

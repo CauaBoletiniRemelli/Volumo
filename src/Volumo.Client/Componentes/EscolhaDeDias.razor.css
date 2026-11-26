@@ -1,0 +1,17 @@
+.escolha-de-dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; max-width: 360px; }
+
+.dia {
+    min-height: 40px;
+    padding: 0;
+    border: 1px solid var(--linha-forte);
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    font: 600 .8rem/1 var(--fonte-texto);
+    cursor: pointer;
+}
+
+.dia:hover { border-color: var(--texto-3); color: var(--texto); }
+.dia:disabled { cursor: progress; }
+.dia-marcado, .dia-marcado:hover { border-color: var(--acao); background: var(--acao); color: var(--sobre-acao); }
+.dia:focus-visible { outline: 2px solid var(--acao); outline-offset: 2px; }

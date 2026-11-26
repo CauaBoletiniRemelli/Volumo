@@ -1,0 +1,150 @@
+@* Calendário do mês: dias com treino registrado em destaque e, de hoje em diante, um ponto nos dias da
+   semana em que algum treino está marcado. Tocar num dia treinado mostra o que foi feito nele. Volta
+   até o mês do treino mais antigo que veio no histórico. *@
+@using Volumo.Shared.Sessoes
+@using Volumo.Shared.Treinos
+
+<section class="painel" aria-labelledby="@_idTitulo">
+    <div class="painel-cabecalho">
+        <h2 id="@_idTitulo">@Titulo</h2>
+        <span class="linha-de-botoes alinhada">
+            <button type="button" class="botao botao-texto" aria-label="Mês anterior" disabled="@(_mes <= PrimeiroMes)" @onclick="() => Mudar(-1)">‹</button>
+            <span class="calendario-mes">@Rotulos.Mes(_mes)</span>
+            <button type="button" class="botao botao-texto" aria-label="Próximo mês" disabled="@(_mes >= MesAtual)" @onclick="() => Mudar(1)">›</button>
+        </span>
+    </div>
+    <div class="painel-corpo pilha" style="--espaco: 14px">
+        <div class="calendario-grade" role="grid" aria-label="@Rotulos.Mes(_mes)">
+            <div class="calendario-semana" role="row">
+                @foreach (var dia in Rotulos.Semana)
+                {
+                    <span class="calendario-dia-semana" role="columnheader" aria-label="@Rotulos.DiaPorExtenso(dia)">@(Rotulos.DiaCurto(dia)[..1])</span>
+                }
+            </div>
+            @foreach (var semana in Semanas())
+            {
+                <div class="calendario-semana" role="row">
+                    @foreach (var dia in semana)
+                    {
+                        if (dia is not { } data)
+                        {
+                            <span class="calendario-dia calendario-fora" role="gridcell"></span>
+                            continue;
+                        }
+
+                        var treinou = _porDia.ContainsKey(data);
+                        var marcado = !treinou && data >= Hoje && DiasMarcados.Contains(data.DayOfWeek);
+                        var classes = $"calendario-dia {(treinou ? "calendario-treinou" : null)} {(data == Hoje ? "calendario-hoje" : null)} {(data == _escolhido ? "calendario-escolhido" : null)}";
+                        <span role="gridcell">
+                            @if (treinou)
+                            {
+                                <button type="button" class="@classes" aria-label="@($"{Rotulos.DiaDoMes(data)}: treinou")" aria-pressed="@(data == _escolhido ? "true" : "false")"
+                                        @onclick="() => Escolher(data)">
+                                    <span class="numero">@data.Day</span>
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="@classes" aria-label="@(marcado ? $"{Rotulos.DiaDoMes(data)}: treino marcado" : null)">
+                                    <span class="numero">@data.Day</span>
+                                    @if (marcado)
+                                    {
+                                        <span class="calendario-ponto" aria-hidden="true"></span>
+                                    }
+                                </span>
+                            }
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (_escolhido is { } escolhido && _porDia.TryGetValue(escolhido, out var doDia))
+        {
+            <div class="pilha" style="--espaco: 6px">
+                <p class="rotulo">@Rotulos.DiaDoMes(escolhido)</p>
+                <ul class="calendario-sessoes">
+                    @foreach (var sessao in doDia)
+                    {
+                        <li>
+                            @if (ComLinks)
+                            {
+                                <a href="historico/@sessao.Id">@(sessao.NomeDoTreino ?? "Treino livre")</a>
+                            }
+                            else
+                            {
+                                <span>@(sessao.NomeDoTreino ?? "Treino livre")</span>
+                            }
+                            <span class="secundario"> · @Rotulos.NumerosDaSessao(sessao)</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <p class="calendario-legenda secundario">
+            <span><span class="numero">@DiasTreinadosNoMes</span> @Rotulos.Plural(DiasTreinadosNoMes, "dia treinado no mês", "dias treinados no mês")</span>
+            @if (DiasMarcados.Count > 0)
+            {
+                <span><span class="calendario-ponto" aria-hidden="true"></span> dia com treino marcado</span>
+            }
+        </p>
+    </div>
+</section>
+
+@code {
+    private readonly string _idTitulo = $"calendario-{Guid.NewGuid():N}";
+    private Dictionary<DateOnly, List<SessaoResumo>> _porDia = [];
+    private DateOnly _mes = MesAtual;
+    private DateOnly? _escolhido;
+
+    [Parameter]
+    public string Titulo { get; set; } = "Calendário";
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SessaoResumo> Sessoes { get; set; } = [];
+
+    /// <summary>Treinos ativos, para marcar os dias da semana planejados.</summary>
+    [Parameter]
+    public IReadOnlyList<TreinoResumo>? Treinos { get; set; }
+
+    /// <summary>Liga cada treino do dia ao histórico (tela do aluno).</summary>
+    [Parameter]
+    public bool ComLinks { get; set; }
+
+    private static DateOnly Hoje => DateOnly.FromDateTime(DateTime.Now);
+
+    private static DateOnly MesAtual => new(Hoje.Year, Hoje.Month, 1);
+
+    private DateOnly PrimeiroMes => _porDia.Count == 0 ? MesAtual : InicioDoMes(_porDia.Keys.Min());
+
+    private HashSet<DayOfWeek> DiasMarcados => [.. (Treinos ?? []).SelectMany(t => t.DiasOuVazio)];
+
+    private int DiasTreinadosNoMes => _porDia.Keys.Count(d => InicioDoMes(d) == _mes);
+
+    // O dia é o do horário de quem está vendo (a API guarda em UTC).
+    protected override void OnParametersSet() =>
+        _porDia = Sessoes
+            .GroupBy(s => DateOnly.FromDateTime(s.IniciadaEm.ToLocalTime().DateTime))
+            .ToDictionary(g => g.Key, g => g.OrderBy(s => s.IniciadaEm).ToList());
+
+    private static DateOnly InicioDoMes(DateOnly dia) => new(dia.Year, dia.Month, 1);
+
+    private void Escolher(DateOnly dia) => _escolhido = dia == _escolhido ? null : dia;
+
+    private void Mudar(int meses)
+    {
+        _mes = _mes.AddMonths(meses);
+        _escolhido = null;
+    }
+
+    /// <summary>Semanas do mês (segunda a domingo), com nulo nos dias de fora do mês.</summary>
+    private IEnumerable<DateOnly?[]> Semanas()
+    {
+        var inicio = _mes.AddDays(-(((int)_mes.DayOfWeek + 6) % 7)); // a segunda da primeira semana
+        for (var segunda = inicio; segunda < _mes.AddMonths(1); segunda = segunda.AddDays(7))
+        {
+            yield return [.. Enumerable.Range(0, 7).Select(i => segunda.AddDays(i)).Select(d => d.Month == _mes.Month ? d : (DateOnly?)null)];
+        }
+    }
+}

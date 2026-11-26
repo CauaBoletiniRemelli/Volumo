@@ -68,6 +68,19 @@ public sealed class TreinosDoAluno(ApiVolumo api, ArmazenamentoLocal local, Sess
     /// <summary>Treino novo finalizado: a próxima abertura do gráfico busca de novo.</summary>
     public Task EsquecerEvolucaoAsync(Guid treinoId) => local.ApagarAsync(ChavesLocais.DataDaCopia(ChavesLocais.Evolucao(Usuario, treinoId)));
 
+    /// <summary>
+    /// Treino montado, alterado ou arquivado pela própria pessoa: a lista e o detalhe vencem na hora, para
+    /// as telas buscarem de novo (a cópia continua servindo offline).
+    /// </summary>
+    public async Task EsquecerCopiaDoTreinoAsync(Guid? treinoId)
+    {
+        await local.ApagarAsync(ChavesLocais.DataDaCopia(ChavesLocais.Treinos(Usuario)));
+        if (treinoId is { } id)
+        {
+            await local.ApagarAsync(ChavesLocais.DataDaCopia(ChavesLocais.Treino(Usuario, id)));
+        }
+    }
+
     /// <summary>Grava direto na API a observação do aluno (precisa de internet) e atualiza a cópia do treino.</summary>
     public async Task<string?> GravarObservacaoAsync(Guid treinoId, Guid exercicioId, string? texto)
     {

@@ -48,12 +48,19 @@ public sealed class ContaController(
     [Authorize(Policy = Policies.ContaAtiva)]
     public async Task<IActionResult> SetBodyDrawing(PreferenciaDeDesenho request, CancellationToken ct)
     {
-        if (await ProfileAsync(User.UsuarioId()!.Value, ct) is not { } perfil)
+        // Personal tem também o perfil de aluno (para os próprios treinos): a preferência vale nos dois.
+        var perfis = await ProfilesAsync(User.UsuarioId()!.Value, ct);
+        if (perfis.Count == 0)
         {
             return NotFound();
         }
 
-        perfil.DefinirCorpoDoDesenho(Enum.IsDefined(request.CorpoDoDesenho) ? Enum.Parse<DomainBody>(request.CorpoDoDesenho.ToString()) : (DomainBody)0);
+        var corpo = Enum.IsDefined(request.CorpoDoDesenho) ? Enum.Parse<DomainBody>(request.CorpoDoDesenho.ToString()) : (DomainBody)0;
+        foreach (var perfil in perfis)
+        {
+            perfil.DefinirCorpoDoDesenho(corpo);
+        }
+
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

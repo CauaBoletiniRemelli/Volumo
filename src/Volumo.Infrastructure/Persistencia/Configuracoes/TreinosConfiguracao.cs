@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Volumo.Domain.Exercicios;
 using Volumo.Domain.Treinos;
 using Volumo.Domain.Usuarios;
+using Volumo.Infrastructure.Identity;
 
 namespace Volumo.Infrastructure.Persistencia.Configuracoes;
 
@@ -26,7 +27,35 @@ internal sealed class TreinoConfiguracao : IEntityTypeConfiguration<Treino>
         builder.HasOne<PerfilPersonal>().WithMany().HasForeignKey(t => t.PersonalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<TemplateTreino>().WithMany().HasForeignKey(t => t.TemplateOrigemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(t => t.AlunoId);
+
+        // Combinação de dias (flags): número, não texto como os outros enums ("Segunda, Quinta" não cabe na convenção).
+        builder.Property(t => t.Dias).HasConversion<int>();
         PlanoDeTreinoMapeamento.Configurar(builder, "ItensTreino", "SeriesTreino", "CardiosTreino");
+    }
+}
+
+/// <summary>Presets próprios (os prontos ficam no código). O dono é a conta, de personal ou de aluno.</summary>
+internal sealed class PresetDeSeriesConfiguracao : IEntityTypeConfiguration<PresetDeSeries>
+{
+    public void Configure(EntityTypeBuilder<PresetDeSeries> builder)
+    {
+        builder.ToTable("PresetsDeSeries");
+        builder.Property(p => p.Id).ValueGeneratedNever();
+        builder.Property(p => p.Nome).HasMaxLength(PresetDeSeries.NomeMaximo);
+        builder.HasOne<Usuario>().WithMany().HasForeignKey(p => p.DonoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(p => p.DonoId);
+        builder.Ignore(p => p.Pronto);
+        builder.HasQueryFilter(FiltrosDeConsulta.Ativos, p => p.InativadoEm == null);
+
+        builder.OwnsMany(p => p.Series, serie =>
+        {
+            serie.ToTable("SeriesPresetDeSeries");
+            serie.Property<Guid>("PresetId");
+            serie.WithOwner().HasForeignKey("PresetId");
+            serie.Property<int>("Id");
+            serie.HasKey("Id");
+        });
+        builder.Navigation(p => p.Series).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 
@@ -85,6 +114,7 @@ internal static class PlanoDeTreinoMapeamento
             item.OwnsMany(i => i.Series, serie =>
             {
                 serie.ToTable(tabelaSeries);
+                serie.Property<Guid>("ItemId");
                 serie.WithOwner().HasForeignKey("ItemId");
                 serie.Property<int>("Id");
                 serie.HasKey("Id");

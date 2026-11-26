@@ -659,6 +659,29 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                     b.ToTable("AnotacoesDoAluno", (string)null);
                 });
 
+            modelBuilder.Entity("Volumo.Domain.Treinos.PresetDeSeries", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DonoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("InativadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DonoId");
+
+                    b.ToTable("PresetsDeSeries", (string)null);
+                });
+
             modelBuilder.Entity("Volumo.Domain.Treinos.TemplateTreino", b =>
                 {
                     b.Property<Guid>("Id")
@@ -696,6 +719,10 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
 
                     b.Property<Guid>("AlunoId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Dias")
+                        .HasMaxLength(30)
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset?>("InativadoEm")
                         .HasColumnType("datetimeoffset");
@@ -1126,6 +1153,58 @@ namespace Volumo.Infrastructure.Persistencia.Migrations
                         .HasForeignKey("TreinoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Volumo.Domain.Treinos.PresetDeSeries", b =>
+                {
+                    b.HasOne("Volumo.Infrastructure.Identity.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("DonoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.OwnsMany("Volumo.Domain.Treinos.Serie", "Series", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal?>("CargaKg")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("decimal(6,2)");
+
+                            b1.Property<int>("DescansoSegundos")
+                                .HasColumnType("int");
+
+                            b1.Property<int>("Ordem")
+                                .HasColumnType("int");
+
+                            b1.Property<Guid>("PresetId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("RepeticoesMaximas")
+                                .HasColumnType("int");
+
+                            b1.Property<int>("RepeticoesMinimas")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("Tipo")
+                                .IsRequired()
+                                .HasMaxLength(30)
+                                .HasColumnType("nvarchar(30)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("PresetId");
+
+                            b1.ToTable("SeriesPresetDeSeries", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("PresetId");
+                        });
+
+                    b.Navigation("Series");
                 });
 
             modelBuilder.Entity("Volumo.Domain.Treinos.TemplateTreino", b =>

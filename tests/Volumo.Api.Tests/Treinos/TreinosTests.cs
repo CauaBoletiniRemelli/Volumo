@@ -132,7 +132,8 @@ public sealed class TreinosTests(VolumoApiFactory factory) : IClassFixture<Volum
         (await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/treinos", tokenOutroPersonal, corpo: plano)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await EnviarAsync(client, HttpMethod.Post, $"/alunos/{alunoId}/encerrar-vinculo", tokenOutroPersonal)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await EnviarAsync(client, HttpMethod.Get, "/alunos", tokenAluno)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await EnviarAsync(client, HttpMethod.Get, "/treinos", tokenPersonal)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await EnviarAsync(client, HttpMethod.Get, "/treinos", await AdminSemOutrosPapeisAsync(client, factory))).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await GetAsync<List<TreinoResumo>>(client, "/treinos", tokenPersonal)).ShouldBeEmpty(); // os próprios treinos do personal
     }
 
     [Fact]

@@ -346,6 +346,10 @@ a:hover { text-decoration-color: var(--acao); }
     .lista-empilha .estagnacao-detalhe { text-align: left; }
 }
 
+/* Treino do aluno com os dias da semana embaixo do nome (tela do personal). */
+.treino-com-dias { flex: 1; align-self: stretch; min-width: 0; padding: 4px 0; }
+.treinos-dias-ajuda { padding: 0 18px 16px; }
+
 .estagnados { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .estagnados > li { display: grid; gap: 2px; }
 

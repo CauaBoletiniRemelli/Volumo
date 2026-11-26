@@ -26,6 +26,12 @@ public sealed class ExclusaoDeConta(VolumoDbContext db, TimeProvider relogio)
         await AnonimizarPersonalAsync(usuarioId, agora, cancellationToken);
         await AnonimizarAlunoAsync(usuarioId, agora, cancellationToken);
 
+        // Presets de séries são da conta (personal ou aluno): saem de uso junto com ela.
+        foreach (var preset in await db.PresetsDeSeries.IgnoreQueryFilters([FiltrosDeConsulta.Dono]).Where(p => p.DonoId == usuarioId).ToListAsync(cancellationToken))
+        {
+            preset.Inativar(agora);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
         return true;
     }

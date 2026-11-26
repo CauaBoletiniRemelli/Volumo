@@ -93,7 +93,8 @@ public sealed class PlanMapper(VolumoDbContext db, StudentNotes notes, MidiaDoEx
         var studentNotes = await notes.TextsAsync(treino.Id, ct);
         return new TreinoDetalhe(
             treino.Id, treino.Nome, treino.AlunoId, treino.PersonalId,
-            await ToOutputAsync(treino, ct, studentNotes), await ToCardioOutputAsync(treino, ct, studentNotes), ToContract(treino.MomentoDoCardio));
+            await ToOutputAsync(treino, ct, studentNotes), await ToCardioOutputAsync(treino, ct, studentNotes), ToContract(treino.MomentoDoCardio),
+            treino.Dias.ParaLista());
     }
 
     public static DomainGroup ToDomain(GrupoMuscular grupo) => Enum.Parse<DomainGroup>(grupo.ToString());
