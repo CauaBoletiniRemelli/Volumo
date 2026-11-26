@@ -1,0 +1,239 @@
+.nome-do-plano input { font-size: 1.1rem; font-weight: 600; }
+
+/* Só zera as laterais e o fim: o espaço de cima vem da .pilha do componente. */
+.itens { display: grid; gap: 16px; margin-inline: 0; margin-bottom: 0; padding: 0; list-style: none; }
+
+.item-cabecalho {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px 12px 18px;
+    border-bottom: 1px solid var(--linha);
+}
+
+.item-ordem { color: var(--texto-3); font-size: .9rem; }
+.item-nome { min-width: 0; font-size: 1.15rem; font-weight: 600; }
+.item-titulo { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.item-resumo { font: 500 .85rem/1.3 var(--fonte-numero); }
+.item-acoes { display: flex; gap: 4px; }
+
+/* Abas Musculação | Cardio */
+.abas { display: flex; gap: 4px; border-bottom: 1px solid var(--linha); }
+
+.aba {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--toque);
+    padding: 0 16px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: var(--texto-2);
+    font: 600 1rem/1 var(--fonte-texto);
+    cursor: pointer;
+}
+
+.aba:hover { color: var(--texto); }
+.aba-ativa { color: var(--texto); border-bottom-color: var(--acao); }
+.aba-contagem { color: var(--texto-3); font-size: .85rem; }
+.aba-ativa .aba-contagem { color: var(--acao); }
+
+/* Cabeçalho clicável: a seta abre e fecha o exercício. */
+.expandir {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--texto);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.seta {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid var(--texto-2);
+    border-bottom: 2px solid var(--texto-2);
+    transform: rotate(-45deg);
+    transition: transform .15s ease;
+}
+
+.seta-aberta { transform: rotate(45deg); }
+.expandir:hover .seta, .expandir:focus-visible .seta { border-color: var(--acao); }
+.expandir:focus-visible { outline: 2px solid var(--acao); outline-offset: 4px; border-radius: var(--raio); }
+
+@media (prefers-reduced-motion: reduce) {
+    .seta { transition: none; }
+}
+
+.alternar-todos { justify-self: end; min-height: 36px; }
+
+/* Cardio: duração e intensidade lado a lado. */
+.cardio-campos {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 18px 18px;
+}
+
+.momento { margin: 0; display: grid; gap: 8px; }
+.momento legend { padding: 0; margin-bottom: 4px; }
+.momento-opcoes { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+
+@media (max-width: 639px) {
+    .cardio-campos { grid-template-columns: 1fr; padding: 12px; }
+    .aba { flex: 1; justify-content: center; }
+}
+
+.botao-icone {
+    width: 40px;
+    height: 40px;
+    border: 1px solid transparent;
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    font: 500 1.1rem/1 var(--fonte-texto);
+    cursor: pointer;
+}
+
+.botao-icone:hover:not(:disabled) { color: var(--texto); border-color: var(--linha-forte); }
+.botao-icone:disabled { opacity: .3; cursor: default; }
+
+/* Séries: Série | Tipo | Reps | Descanso | Carga | remover */
+.series { padding: 8px 18px; }
+
+.serie {
+    display: grid;
+    grid-template-columns: 48px minmax(110px, 1.2fr) minmax(120px, 1.3fr) minmax(70px, .8fr) minmax(70px, .8fr) 40px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+}
+
+.serie-titulos {
+    font: 600 .7rem/1 var(--fonte-texto);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--texto-3);
+}
+
+.serie-numero { color: var(--texto-3); }
+
+.serie-reps { display: flex; align-items: center; gap: 6px; }
+
+.serie input, .serie select {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font: 500 .95rem var(--fonte-numero);
+    font-variant-numeric: tabular-nums;
+}
+
+.serie select { font-family: var(--fonte-texto); }
+.serie input:focus, .serie select:focus { outline: none; border-color: var(--acao); }
+
+.item-rodape {
+    display: grid;
+    gap: 12px;
+    padding: 4px 18px 18px;
+}
+
+.item-rodape .botao-texto { justify-self: start; min-height: 40px; }
+
+/* Celular: cada série em duas linhas (número, tipo e remover em cima; números embaixo). */
+@media (max-width: 639px) {
+    .series { padding: 8px 12px; }
+
+    .serie-titulos { display: none; }
+
+    .serie {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-areas:
+            "num tipo tipo tipo tipo rem"
+            "reps reps reps reps reps reps"
+            "desc desc desc carga carga carga";
+        padding: 10px 0;
+        border-bottom: 1px solid var(--linha);
+    }
+
+    .serie:last-child { border-bottom: 0; }
+    .serie > :nth-child(1) { grid-area: num; }
+    .serie > :nth-child(2) { grid-area: tipo; }
+    .serie > :nth-child(3) { grid-area: reps; }
+    .serie > :nth-child(4) { grid-area: desc; }
+    .serie > :nth-child(5) { grid-area: carga; }
+    .serie > :nth-child(6) { grid-area: rem; }
+
+    .serie:not(.serie-titulos) > :nth-child(3)::before { content: "Reps"; }
+    .serie:not(.serie-titulos) > :nth-child(4)::before { content: "Descanso (s)"; }
+    .serie:not(.serie-titulos) > :nth-child(5)::before { content: "Carga (kg)"; }
+
+    .serie > :nth-child(4), .serie > :nth-child(5) { display: grid; gap: 4px; }
+    .serie > :nth-child(3) { flex-wrap: wrap; }
+    .serie > :nth-child(3)::before { flex-basis: 100%; }
+
+    .serie > :nth-child(n+3)::before {
+        font: 600 .65rem/1 var(--fonte-texto);
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--texto-3);
+    }
+
+    .serie-reps input { flex: 1; min-width: 0; }
+
+    .item-cabecalho { padding-left: 12px; }
+}
+
+/* Celular: com nome longo, as setas e o × descem para a linha de baixo, alinhados à direita. */
+.item-cabecalho { flex-wrap: wrap; row-gap: 4px; }
+.item-cabecalho .expandir { flex: 1 1 180px; }
+.item-cabecalho .item-titulo { flex: 1 1 160px; }
+.item-nome { overflow-wrap: anywhere; }
+.item-acoes { margin-left: auto; }
+
+/* Presets: "+ Série", "Aplicar preset" e "Salvar como preset" na mesma linha (quebram no celular). */
+.series-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; }
+.item-rodape { grid-template-columns: minmax(0, 1fr); }
+
+.aplicar-preset {
+    flex: 1 1 220px;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font: 500 .9rem var(--fonte-texto);
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.aplicar-preset:hover { border-color: var(--linha-forte); }
+.aplicar-preset:focus { outline: none; border-color: var(--acao); }
+
+.preset-aplicado { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; }
+.preset-aplicado .botao-texto { min-height: 32px; color: var(--acao); }
+
+.salvar-preset {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+}

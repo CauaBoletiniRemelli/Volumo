@@ -1,0 +1,53 @@
+.entrada {
+    min-height: 100vh;
+    display: grid;
+    grid-template-areas: "topo" "formulario" "lado";
+    grid-template-rows: auto auto 1fr;
+    padding: 0 var(--gutter);
+}
+
+.entrada-topo { grid-area: topo; padding: 20px 0 8px; }
+
+.entrada-formulario {
+    grid-area: formulario;
+    width: 100%;
+    max-width: 420px;
+    padding: 32px 0 40px;
+}
+
+.entrada-lado {
+    grid-area: lado;
+    padding: 28px 0 40px;
+    border-top: 1px solid var(--linha);
+    color: var(--texto-2);
+}
+
+@media (min-width: 960px) {
+    .entrada {
+        grid-template-areas:
+            "topo topo"
+            "lado formulario";
+        grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+        grid-template-rows: auto 1fr;
+        column-gap: 8vw;
+        padding: 0 6vw;
+    }
+
+    .entrada-topo { padding: 32px 0; }
+
+    .entrada-lado {
+        align-self: center;
+        padding: 0 0 12vh;
+        border-top: 0;
+    }
+
+    .entrada-formulario {
+        align-self: center;
+        padding: 0 0 12vh;
+        border-left: 1px solid var(--linha);
+        padding-left: 6vw;
+        max-width: none;
+    }
+
+    .entrada-formulario ::deep > * { max-width: 400px; }
+}

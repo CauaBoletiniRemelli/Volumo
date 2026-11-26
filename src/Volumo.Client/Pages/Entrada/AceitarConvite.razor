@@ -1,0 +1,136 @@
+@page "/aceitar-convite"
+@layout EntradaLayout
+@using System.ComponentModel.DataAnnotations
+@using Volumo.Shared.Convites
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+@inject NavigationManager Navegacao
+
+<PageTitle>Convite · Volumo</PageTitle>
+
+<SectionContent SectionName="entrada-lado">
+    <div class="lado pilha">
+        <p class="rotulo">Para alunos</p>
+        <p class="lado-frase">Seu personal monta. Você abre o app na academia e treina.</p>
+        <p>Para você é de graça. O app guarda o treino no celular e registra as séries mesmo sem internet.</p>
+    </div>
+</SectionContent>
+
+@if (_erro is not null && _resumo is null)
+{
+    <div class="pilha" style="--espaco: 20px">
+        <h1>Convite inválido</h1>
+        <p>@_erro</p>
+        <p class="secundario">Peça ao seu personal para enviar um convite novo.</p>
+    </div>
+}
+else if (_resumo is null)
+{
+    <p class="secundario">Carregando o convite.</p>
+}
+else if (_resumo.ContaExistente)
+{
+    <div class="pilha" style="--espaco: 24px">
+        <p class="rotulo">Convite</p>
+        <h1>@_resumo.NomeDoPersonal</h1>
+        <p>convidou <strong>@_resumo.Email</strong> para treinar com acompanhamento no Volumo.</p>
+        <AuthorizeView>
+            <Authorized>
+                @if (_erro is not null)
+                {
+                    <p class="aviso aviso-erro" role="alert">@_erro</p>
+                }
+                <button class="botao botao-principal botao-largo" disabled="@_enviando" @onclick="AceitarAsync">Aceitar convite</button>
+            </Authorized>
+            <NotAuthorized>
+                <p class="secundario">Este e-mail já tem conta. Entre para aceitar.</p>
+                <a class="botao botao-principal botao-largo" href="@($"entrar?voltar={Uri.EscapeDataString("/aceitar-convite?token=" + Token)}")">Entrar para aceitar</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+}
+else
+{
+    <div class="pilha" style="--espaco: 24px">
+        <p class="rotulo">Convite</p>
+        <h1>@_resumo.NomeDoPersonal</h1>
+        <p>convidou você para treinar no Volumo. Crie a senha e pronto: você já entra.</p>
+        <EditForm Model="_form" OnValidSubmit="CadastrarAsync" class="formulario" FormName="cadastro-aluno">
+            <DataAnnotationsValidator />
+            <div class="campo">
+                <span class="rotulo">E-mail</span>
+                <p class="numero">@_resumo.Email</p>
+            </div>
+            <div class="campo">
+                <label class="rotulo" for="nome">Seu nome</label>
+                <InputText id="nome" autocomplete="name" @bind-Value="_form.Nome" />
+                <ValidationMessage For="() => _form.Nome" />
+            </div>
+            <div class="campo">
+                <label class="rotulo" for="senha">Senha</label>
+                <InputText id="senha" type="password" autocomplete="new-password" @bind-Value="_form.Senha" />
+                <span class="campo-ajuda">Pelo menos 10 caracteres.</span>
+                <ValidationMessage For="() => _form.Senha" />
+            </div>
+            @if (_erro is not null)
+            {
+                <p class="aviso aviso-erro" role="alert">@_erro</p>
+            }
+            <button type="submit" class="botao botao-principal botao-largo" disabled="@_enviando">Criar conta e entrar</button>
+        </EditForm>
+    </div>
+}
+
+@code {
+    private readonly Formulario _form = new();
+    private ResumoDoConvite? _resumo;
+    private string? _erro;
+    private bool _enviando;
+
+    [SupplyParameterFromQuery] public string? Token { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Api.PostAsync<ResumoDoConvite>("convites/consultar", new TokenDeConvite(Token ?? string.Empty));
+        _resumo = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+
+    private async Task CadastrarAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync<RespostaDeLogin>("auth/cadastro/aluno", new CadastroDeAluno(Token!, _form.Nome.Trim(), _form.Senha));
+        _enviando = false;
+        if (resultado.Ok)
+        {
+            Sessao.Iniciar(resultado.Valor!);
+            Navegacao.NavigateTo("/", replace: true);
+            return;
+        }
+
+        _erro = resultado.Erro;
+    }
+
+    private async Task AceitarAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync("convites/aceitar", new TokenDeConvite(Token!));
+        _enviando = false;
+        if (resultado.Ok)
+        {
+            Navegacao.NavigateTo("/", replace: true);
+            return;
+        }
+
+        _erro = resultado.Erro;
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Informe seu nome."), StringLength(120)]
+        public string Nome { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Crie uma senha."), MinLength(10, ErrorMessage = "A senha precisa ter pelo menos 10 caracteres."), StringLength(128)]
+        public string Senha { get; set; } = string.Empty;
+    }
+}

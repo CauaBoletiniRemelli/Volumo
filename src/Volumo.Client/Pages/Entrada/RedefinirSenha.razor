@@ -1,0 +1,61 @@
+@page "/redefinir-senha"
+@layout EntradaLayout
+@using System.ComponentModel.DataAnnotations
+@inject ApiVolumo Api
+
+<PageTitle>Criar nova senha · Volumo</PageTitle>
+
+@if (_concluido)
+{
+    <div class="pilha" style="--espaco: 20px">
+        <h1>Senha trocada</h1>
+        <p>Por segurança, saímos da sua conta em todos os aparelhos. Entre de novo com a senha nova.</p>
+        <a class="botao botao-principal" href="entrar">Entrar</a>
+    </div>
+}
+else
+{
+    <div class="pilha" style="--espaco: 28px">
+        <h1>Nova senha</h1>
+        <EditForm Model="_form" OnValidSubmit="SalvarAsync" class="formulario" FormName="redefinir-senha">
+            <DataAnnotationsValidator />
+            <div class="campo">
+                <label class="rotulo" for="senha">Senha nova</label>
+                <InputText id="senha" type="password" autocomplete="new-password" @bind-Value="_form.Senha" />
+                <span class="campo-ajuda">Pelo menos 10 caracteres.</span>
+                <ValidationMessage For="() => _form.Senha" />
+            </div>
+            @if (_erro is not null)
+            {
+                <p class="aviso aviso-erro" role="alert">@_erro</p>
+            }
+            <button type="submit" class="botao botao-principal botao-largo" disabled="@_enviando">Salvar senha</button>
+        </EditForm>
+    </div>
+}
+
+@code {
+    private readonly Formulario _form = new();
+    private string? _erro;
+    private bool _enviando;
+    private bool _concluido;
+
+    [SupplyParameterFromQuery] public Guid Usuario { get; set; }
+
+    [SupplyParameterFromQuery] public string? Token { get; set; }
+
+    private async Task SalvarAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync("auth/redefinir-senha", new RedefinicaoDeSenha(Usuario, Token ?? string.Empty, _form.Senha));
+        _enviando = false;
+        _concluido = resultado.Ok;
+        _erro = resultado.Erro;
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Crie uma senha."), MinLength(10, ErrorMessage = "A senha precisa ter pelo menos 10 caracteres."), StringLength(128)]
+        public string Senha { get; set; } = string.Empty;
+    }
+}

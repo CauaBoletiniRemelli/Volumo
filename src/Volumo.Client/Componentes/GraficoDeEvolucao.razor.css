@@ -1,0 +1,35 @@
+/* Gráfico de evolução: uma série em limão, grade e eixos discretos, recorde em laranja. */
+
+.grafico { max-width: 560px; }
+
+.grafico-filtros { display: grid; gap: 12px; }
+.grafico-medidas { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.grafico-leitura { display: grid; gap: 6px; justify-items: start; min-height: 92px; }
+.grafico-valor { font-size: 1.6rem; line-height: 1; color: var(--acao); }
+
+.etiqueta-recorde { color: var(--conquista); border-color: var(--conquista); }
+
+.grafico-svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: manipulation; }
+
+.grafico-grade { stroke: var(--linha); stroke-width: 1; }
+.grafico-eixo { fill: var(--texto-3); font: 500 11px var(--fonte-numero); }
+.grafico-mira { stroke: var(--linha-forte); stroke-width: 1; stroke-dasharray: 3 3; }
+
+.grafico-linha { fill: none; stroke: var(--acao); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+
+/* Anel da cor do fundo separa o ponto da linha. */
+.grafico-ponto { fill: var(--acao); stroke: var(--fundo); stroke-width: 2; }
+.grafico-ponto-recorde { fill: var(--conquista); }
+.grafico-ponto-foco { stroke: var(--texto); }
+
+.grafico-alvo { fill: transparent; cursor: pointer; }
+
+.grafico-tabela summary { cursor: pointer; color: var(--texto-2); font-size: .9rem; min-height: 32px; }
+.grafico-tabela table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: .9rem; }
+.grafico-tabela th { text-align: left; font: 600 .7rem/1.2 var(--fonte-texto); letter-spacing: .06em; text-transform: uppercase; color: var(--texto-3); }
+.grafico-tabela th, .grafico-tabela td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--linha); }
+
+@media (min-width: 640px) {
+    .grafico-filtros { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; }
+}

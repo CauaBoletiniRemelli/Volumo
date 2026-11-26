@@ -1,0 +1,331 @@
+@page "/admin/exercicios/novo"
+@page "/admin/exercicios/{Id:guid}"
+@attribute [Authorize(Roles = "Admin")]
+@using Volumo.Shared.Admin
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+@inject NavigationManager Navegacao
+
+<PageTitle>@(Id is null ? "Novo exercício" : "Exercício") · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <p class="rotulo"><a href="admin/exercicios">Catálogo</a></p>
+    <h1>@(Id is null ? "Novo exercício" : _nome.Length > 0 ? _nome : "Exercício")</h1>
+</header>
+
+<ExigeDoisFatores Mensagem="O painel da plataforma exige verificação em duas etapas, porque dá acesso a dados de todos. Ative para continuar: leva um minuto.">
+    @if (Id is not null && _detalhe is null)
+    {
+        <p class="secundario">@(_erro ?? "Carregando.")</p>
+    }
+    else
+    {
+        <div class="editor pilha" style="--espaco: 28px">
+            <section class="painel painel-corpo pilha" style="--espaco: 18px" aria-label="Dados do exercício">
+                <div class="campo">
+                    <label class="rotulo" for="nome">Nome</label>
+                    <input id="nome" maxlength="100" @bind="_nome" />
+                </div>
+
+                <div class="duas-colunas">
+                    <div class="campo">
+                        <label class="rotulo" for="grupo">Músculo principal</label>
+                        <select id="grupo" @bind="_grupo">
+                            @foreach (var grupo in Enum.GetValues<GrupoMuscular>())
+                            {
+                                <option value="@grupo">@Rotulos.De(grupo)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="campo">
+                        <label class="rotulo" for="equipamento">Equipamento</label>
+                        <select id="equipamento" @bind="_equipamento">
+                            <option value="">Não informado</option>
+                            @foreach (var equipamento in Enum.GetValues<Equipamento>())
+                            {
+                                <option value="@equipamento">@Rotulos.De(equipamento)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <fieldset class="secundarios">
+                    <legend class="rotulo">Músculos secundários (até 5)</legend>
+                    <div class="chips">
+                        @foreach (var grupo in Enum.GetValues<GrupoMuscular>().Where(g => g != _grupo))
+                        {
+                            var marcado = _secundarios.Contains(grupo);
+                            <button type="button" class="chip @(marcado ? "chip-ativo" : null)" aria-pressed="@(marcado ? "true" : "false")"
+                                    disabled="@(!marcado && _secundarios.Count >= 5)" @onclick="() => AlternarSecundario(grupo)">@Rotulos.De(grupo)</button>
+                        }
+                    </div>
+                </fieldset>
+
+                <fieldset class="passos">
+                    <legend class="rotulo">Instruções em passos (até 10)</legend>
+                    <ol class="lista-de-passos">
+                        @for (var i = 0; i < _passos.Count; i++)
+                        {
+                            var indice = i;
+                            var passo = _passos[indice];
+                            <li @key="passo">
+                                <span class="numero passo-numero">@(indice + 1)</span>
+                                <input maxlength="300" aria-label="Passo @(indice + 1)" placeholder="Ex.: Mantenha as escápulas encaixadas." @bind="passo.Texto" />
+                                <button type="button" class="botao-icone" aria-label="Remover passo @(indice + 1)" @onclick="() => _passos.RemoveAt(indice)">×</button>
+                            </li>
+                        }
+                    </ol>
+                    @if (_passos.Count < 10)
+                    {
+                        <button type="button" class="botao botao-texto" @onclick="() => _passos.Add(new Passo())">+ Passo</button>
+                    }
+                </fieldset>
+
+                @if (_erro is not null)
+                {
+                    <p class="aviso aviso-erro" role="alert">@_erro</p>
+                }
+                @if (_aviso is not null)
+                {
+                    <p class="aviso aviso-ok" role="status">@_aviso</p>
+                }
+
+                <div class="linha-de-botoes">
+                    <button type="button" class="botao botao-principal" disabled="@_salvando" @onclick="SalvarAsync">@(Id is null ? "Criar exercício" : "Salvar")</button>
+                    <a class="botao" href="admin/exercicios">Voltar</a>
+                </div>
+            </section>
+
+            @if (Id is null)
+            {
+                <p class="campo-ajuda">Foto e vídeo são enviados depois de criar o exercício.</p>
+            }
+            else if (_detalhe is { } detalhe)
+            {
+                <section class="painel painel-corpo pilha" style="--espaco: 18px" aria-label="Foto e vídeo">
+                    <h2>Foto e vídeo</h2>
+                    <p class="campo-ajuda">Padrão do catálogo: vídeo de poucos segundos, em loop, sem som, mesmo enquadramento e fundo neutro em todos.</p>
+
+                    <div class="midias">
+                        <div class="midia pilha" style="--espaco: 10px">
+                            <p class="rotulo">Foto · JPEG, PNG ou WebP até 2 MB</p>
+                            <AreaDeEnvio Tipos="@TiposDeFoto" Desabilitado="@(_enviando is not null)" AoEscolher="e => EnviarAsync(e, TipoDeEnvio.Foto)"
+                                         TextoDoBotao="@(_enviando == TipoDeEnvio.Foto ? "Enviando" : detalhe.FotoUrl is null ? "Escolher foto" : "Trocar foto")">
+                                @if (detalhe.FotoUrl is { } foto)
+                                {
+                                    <img class="previa" src="@foto" alt="Foto de @detalhe.Nome" />
+                                }
+                                else
+                                {
+                                    <div class="previa previa-vazia">Sem foto</div>
+                                }
+                            </AreaDeEnvio>
+                            @if (detalhe.FotoUrl is not null)
+                            {
+                                <button type="button" class="botao botao-texto texto-erro" disabled="@(_enviando is not null)" @onclick="() => RemoverAsync(TipoDeEnvio.Foto)">Remover foto</button>
+                            }
+                        </div>
+
+                        <div class="midia pilha" style="--espaco: 10px">
+                            <p class="rotulo">Vídeo · MP4 ou WebM até 10 MB</p>
+                            <AreaDeEnvio Tipos="@TiposDeVideo" Desabilitado="@(_enviando is not null)" AoEscolher="e => EnviarAsync(e, TipoDeEnvio.Video)"
+                                         TextoDoBotao="@(_enviando == TipoDeEnvio.Video ? "Enviando" : detalhe.VideoUrl is null ? "Escolher vídeo" : "Trocar vídeo")">
+                                @if (detalhe.VideoUrl is { } video)
+                                {
+                                    <video class="previa" src="@video" muted loop autoplay playsinline controls aria-label="Vídeo de execução de @detalhe.Nome"></video>
+                                }
+                                else
+                                {
+                                    <div class="previa previa-vazia">Sem vídeo</div>
+                                }
+                            </AreaDeEnvio>
+                            @if (detalhe.VideoUrl is not null)
+                            {
+                                <button type="button" class="botao botao-texto texto-erro" disabled="@(_enviando is not null)" @onclick="() => RemoverAsync(TipoDeEnvio.Video)">Remover vídeo</button>
+                            }
+                        </div>
+                    </div>
+                    @if (_erroMidia is not null)
+                    {
+                        <p class="aviso aviso-erro" role="alert">@_erroMidia</p>
+                    }
+                </section>
+
+                <section class="painel painel-corpo pilha" style="--espaco: 12px" aria-label="Situação">
+                    @if (detalhe.Ativo)
+                    {
+                        <p>Ativo: aparece na busca dos personais.</p>
+                        <button type="button" class="botao botao-texto texto-erro" @onclick="() => AlternarAtivoAsync(false)">Inativar exercício</button>
+                    }
+                    else
+                    {
+                        <p>Inativo: fora da busca. Treinos que já usam continuam mostrando o nome.</p>
+                        <button type="button" class="botao" @onclick="() => AlternarAtivoAsync(true)">Reativar exercício</button>
+                    }
+                </section>
+            }
+        </div>
+    }
+</ExigeDoisFatores>
+
+@code {
+    private const long FotoMaxima = 2 * 1024 * 1024;
+    private const long VideoMaximo = 10 * 1024 * 1024;
+    private const string TiposDeFoto = "image/jpeg,image/png,image/webp";
+    private const string TiposDeVideo = "video/mp4,video/webm";
+
+    private enum TipoDeEnvio { Foto, Video }
+
+    private ExercicioDetalhe? _detalhe;
+    private string _nome = string.Empty;
+    private GrupoMuscular _grupo = GrupoMuscular.Peitoral;
+    private Equipamento? _equipamento;
+    private readonly HashSet<GrupoMuscular> _secundarios = [];
+    private List<Passo> _passos = [new()];
+    private string? _erro;
+    private string? _aviso;
+    private string? _erroMidia;
+    private bool _salvando;
+    private TipoDeEnvio? _enviando;
+
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id is not { } id)
+        {
+            return;
+        }
+
+        var resultado = await Api.GetAsync<ExercicioDetalhe>($"admin/exercicios/{id}", atualizar: true);
+        _erro = resultado.Erro;
+        if (resultado.Valor is { } detalhe)
+        {
+            Preencher(detalhe);
+        }
+    }
+
+    private void Preencher(ExercicioDetalhe detalhe)
+    {
+        _detalhe = detalhe;
+        _nome = detalhe.Nome;
+        _grupo = detalhe.GrupoMuscular;
+        _equipamento = detalhe.Equipamento;
+        _secundarios.Clear();
+        _secundarios.UnionWith(detalhe.MusculosSecundarios);
+        _passos = detalhe.Instrucoes.Count == 0 ? [new()] : [.. detalhe.Instrucoes.Select(t => new Passo { Texto = t })];
+    }
+
+    private void AlternarSecundario(GrupoMuscular grupo)
+    {
+        if (!_secundarios.Remove(grupo) && _secundarios.Count < 5)
+        {
+            _secundarios.Add(grupo);
+        }
+    }
+
+    private async Task SalvarAsync()
+    {
+        _aviso = null;
+        if (string.IsNullOrWhiteSpace(_nome))
+        {
+            _erro = "Dê um nome ao exercício.";
+            return;
+        }
+
+        _salvando = true;
+        _secundarios.Remove(_grupo);
+        var dados = new DadosDoExercicioDoCatalogo(
+            _nome.Trim(),
+            _grupo,
+            [.. _secundarios],
+            _equipamento,
+            [.. _passos.Select(p => p.Texto.Trim()).Where(t => t.Length > 0)]);
+
+        if (Id is { } id)
+        {
+            var resultado = await Api.PutAsync($"admin/exercicios/{id}", dados);
+            _erro = resultado.Erro;
+            _aviso = resultado.Ok ? "Salvo." : null;
+            if (resultado.Ok)
+            {
+                await RecarregarAsync(id);
+            }
+        }
+        else
+        {
+            var resultado = await Api.PostAsync<RecursoCriado>("admin/exercicios", dados);
+            _erro = resultado.Erro;
+            if (resultado.Valor is { } criado)
+            {
+                Navegacao.NavigateTo($"admin/exercicios/{criado.Id}", replace: true);
+            }
+        }
+
+        _salvando = false;
+    }
+
+    private async Task EnviarAsync(InputFileChangeEventArgs e, TipoDeEnvio tipo)
+    {
+        _erroMidia = null;
+        var arquivo = e.File;
+        var maximo = tipo == TipoDeEnvio.Foto ? FotoMaxima : VideoMaximo;
+        // Arrastando, chega qualquer arquivo (o accept só filtra a janela de escolher).
+        if (!(tipo == TipoDeEnvio.Foto ? TiposDeFoto : TiposDeVideo).Split(',').Contains(arquivo.ContentType))
+        {
+            _erroMidia = tipo == TipoDeEnvio.Foto ? "A foto precisa ser JPEG, PNG ou WebP." : "O vídeo precisa ser MP4 ou WebM.";
+            return;
+        }
+
+        if (arquivo.Size > maximo)
+        {
+            _erroMidia = tipo == TipoDeEnvio.Foto ? "A foto precisa ter até 2 MB." : "O vídeo precisa ter até 10 MB.";
+            return;
+        }
+
+        _enviando = tipo;
+        try
+        {
+            await using var conteudo = arquivo.OpenReadStream(maximo);
+            var resultado = await Api.EnviarArquivoAsync<ExercicioDetalhe>(
+                $"admin/exercicios/{Id}/{(tipo == TipoDeEnvio.Foto ? "foto" : "video")}", conteudo, arquivo.Name, arquivo.ContentType);
+            _erroMidia = resultado.Erro;
+            if (resultado.Valor is { } detalhe)
+            {
+                _detalhe = detalhe;
+            }
+        }
+        finally
+        {
+            _enviando = null;
+        }
+    }
+
+    private async Task RemoverAsync(TipoDeEnvio tipo)
+    {
+        var resultado = await Api.PostAsync($"admin/exercicios/{Id}/{(tipo == TipoDeEnvio.Foto ? "foto" : "video")}/remover");
+        _erroMidia = resultado.Erro;
+        await RecarregarAsync(Id!.Value);
+    }
+
+    private async Task AlternarAtivoAsync(bool ativar)
+    {
+        var resultado = await Api.PostAsync($"admin/exercicios/{Id}/{(ativar ? "reativar" : "inativar")}");
+        _erro = resultado.Erro;
+        await RecarregarAsync(Id!.Value);
+    }
+
+    private async Task RecarregarAsync(Guid id)
+    {
+        if ((await Api.GetAsync<ExercicioDetalhe>($"admin/exercicios/{id}", atualizar: true)).Valor is { } detalhe)
+        {
+            Preencher(detalhe);
+        }
+    }
+
+    private sealed class Passo
+    {
+        public string Texto { get; set; } = string.Empty;
+    }
+}

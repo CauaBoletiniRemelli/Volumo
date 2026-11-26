@@ -1,0 +1,76 @@
+.editor { max-width: 860px; }
+
+.duas-colunas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+
+fieldset { margin: 0; padding: 0; border: 0; display: grid; gap: 10px; }
+legend { padding: 0; margin-bottom: 8px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.chip {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--linha-forte);
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    font: 500 .85rem/1 var(--fonte-texto);
+    cursor: pointer;
+}
+
+.chip:hover:not(:disabled) { color: var(--texto); border-color: var(--texto-3); }
+.chip:disabled { opacity: .4; cursor: default; }
+.chip-ativo { color: var(--texto); border-color: var(--acao); }
+
+.lista-de-passos { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.lista-de-passos li { display: grid; grid-template-columns: 28px minmax(0, 1fr) 40px; align-items: center; gap: 8px; }
+
+.lista-de-passos input {
+    width: 100%;
+    min-height: var(--toque);
+    padding: 0 14px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font: 400 1rem var(--fonte-texto);
+}
+
+.lista-de-passos input:focus { outline: none; border-color: var(--acao); }
+
+.passo-numero { color: var(--texto-3); text-align: right; }
+
+.botao-icone {
+    width: 40px;
+    height: 40px;
+    border: 1px solid transparent;
+    border-radius: var(--raio);
+    background: transparent;
+    color: var(--texto-2);
+    font: 500 1.1rem/1 var(--fonte-texto);
+    cursor: pointer;
+}
+
+.botao-icone:hover { color: var(--texto); border-color: var(--linha-forte); }
+
+.passos .botao-texto { justify-self: start; }
+
+.midias { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+
+.midia .botao-texto { justify-self: start; }
+
+.previa {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--fundo-fundo);
+}
+
+.previa-vazia { display: grid; place-items: center; color: var(--texto-3); font-size: .9rem; }
+
+@media (max-width: 639px) {
+    .duas-colunas, .midias { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,17 @@
+.observacao-aluno-linha { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; overflow-wrap: anywhere; }
+.observacao-aluno-linha .rotulo { margin-right: 6px; }
+.observacao-aluno-anotar { justify-self: start; min-height: 36px; }
+
+.observacao-aluno-texto {
+    width: 100%;
+    min-height: 80px;
+    padding: 12px 14px;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    background: var(--campo);
+    color: var(--texto);
+    font: 400 1rem/1.45 var(--fonte-texto);
+    resize: vertical;
+}
+
+.observacao-aluno-texto:focus { outline: none; border-color: var(--acao); }

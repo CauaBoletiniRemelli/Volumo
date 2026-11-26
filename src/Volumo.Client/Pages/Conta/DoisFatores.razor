@@ -1,0 +1,135 @@
+@page "/conta/2fa"
+@attribute [Authorize]
+@using QRCoder
+@using System.ComponentModel.DataAnnotations
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+@inject IJSRuntime JS
+@inject NavigationManager Navegacao
+
+<PageTitle>Verificação em duas etapas · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <p class="rotulo">Segurança</p>
+    <h1>Duas etapas</h1>
+</header>
+
+<div class="duas-colunas">
+    <div class="pilha" style="--espaco: 24px">
+        @if (_codigosDeRecuperacao is not null)
+        {
+            <h2>Guarde estes códigos</h2>
+            <p>Se perder o celular, cada código abaixo deixa você entrar uma vez. Eles não aparecem de novo.</p>
+            <ol class="codigos numero">
+                @foreach (var codigo in _codigosDeRecuperacao)
+                {
+                    <li>@codigo</li>
+                }
+            </ol>
+            <div class="linha-de-botoes">
+                <button class="botao" @onclick="CopiarAsync">@(_copiado ? "Copiados" : "Copiar códigos")</button>
+                <a class="botao botao-principal" href="/">Já guardei, continuar</a>
+            </div>
+        }
+        else if (_configuracao is null)
+        {
+            <p>Além da senha, você vai digitar um código de 6 números que muda a cada 30 segundos num aplicativo do celular. Se a senha vazar, ninguém entra sem o seu celular.</p>
+            <AuthorizeView Roles="Personal">
+                <p class="aviso">Para personal é obrigatório: a conta guarda dados dos seus alunos.</p>
+            </AuthorizeView>
+            <p class="secundario">Funciona com Google Authenticator, Microsoft Authenticator, Authy ou outro aplicativo autenticador.</p>
+            @if (_erro is not null)
+            {
+                <p class="aviso aviso-erro" role="alert">@_erro</p>
+            }
+            <div><button class="botao botao-principal" disabled="@_enviando" @onclick="IniciarAsync">Começar</button></div>
+        }
+        else
+        {
+            <ol class="passos">
+                <li>
+                    <p>No aplicativo autenticador, adicione uma conta e escaneie o QR code:</p>
+                    @if (_qrCode is not null)
+                    {
+                        <div class="qr-code" role="img" aria-label="QR code para o aplicativo autenticador">@_qrCode</div>
+                    }
+                    <p class="secundario">Sem câmera? Escolha "inserir chave" no aplicativo e digite:</p>
+                    <p class="chave numero">@_configuracao.Chave</p>
+                    <p class="secundario">No celular, dá para tocar em <a href="@_configuracao.UriOtpauth">abrir no aplicativo</a> em vez de escanear.</p>
+                </li>
+                <li>
+                    <EditForm Model="_form" OnValidSubmit="AtivarAsync" class="formulario" FormName="ativar-2fa">
+                        <DataAnnotationsValidator />
+                        <div class="campo">
+                            <label class="rotulo" for="codigo">Código que apareceu no aplicativo</label>
+                            <InputText id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" @bind-Value="_form.Codigo" />
+                            <ValidationMessage For="() => _form.Codigo" />
+                        </div>
+                        @if (_erro is not null)
+                        {
+                            <p class="aviso aviso-erro" role="alert">@_erro</p>
+                        }
+                        <button type="submit" class="botao botao-principal" disabled="@_enviando">Ativar</button>
+                    </EditForm>
+                </li>
+            </ol>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly Formulario _form = new();
+    private ConfiguracaoDeDoisFatores? _configuracao;
+    private MarkupString? _qrCode;
+    private IReadOnlyList<string>? _codigosDeRecuperacao;
+    private string? _erro;
+    private bool _enviando;
+    private bool _copiado;
+
+    private async Task IniciarAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync<ConfiguracaoDeDoisFatores>("auth/2fa/iniciar");
+        _enviando = false;
+        _configuracao = resultado.Valor;
+        _erro = resultado.Erro;
+        _qrCode = _configuracao is null ? null : GerarQrCode(_configuracao.UriOtpauth);
+    }
+
+    /// <summary>SVG gerado aqui mesmo a partir do link otpauth (conteúdo vindo da API, sem entrada do usuário).</summary>
+    private static MarkupString GerarQrCode(string uriOtpauth)
+    {
+        using var gerador = new QRCodeGenerator();
+        using var dados = gerador.CreateQrCode(uriOtpauth, QRCodeGenerator.ECCLevel.M);
+        return new MarkupString(new SvgQRCode(dados).GetGraphic(6, "#0F1115", "#FFFFFF", drawQuietZones: true));
+    }
+
+    private async Task AtivarAsync()
+    {
+        _enviando = true;
+        var resultado = await Api.PostAsync<RespostaDeAtivacaoDeDoisFatores>("auth/2fa/ativar", new AtivacaoDeDoisFatores(_form.Codigo));
+        _enviando = false;
+        if (!resultado.Ok)
+        {
+            _erro = resultado.Erro;
+            return;
+        }
+
+        // A API troca a sessão por uma com segundo fator.
+        Sessao.Iniciar(resultado.Valor!.Sessao);
+        _codigosDeRecuperacao = resultado.Valor.CodigosDeRecuperacao;
+        _erro = null;
+    }
+
+    private async Task CopiarAsync()
+    {
+        await JS.InvokeVoidAsync("volumo.copiar", string.Join('\n', _codigosDeRecuperacao!));
+        _copiado = true;
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Digite o código do aplicativo.")]
+        public string Codigo { get; set; } = string.Empty;
+    }
+}

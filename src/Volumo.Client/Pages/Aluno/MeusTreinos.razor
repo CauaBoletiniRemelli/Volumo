@@ -1,0 +1,215 @@
+@page "/treinos"
+@attribute [Authorize(Roles = "Aluno")]
+@using Volumo.Shared.Sessoes
+@using Volumo.Shared.Treinos
+@inject TreinosDoAluno Treinos
+@inject SincronizacaoDeSessoes Sincronizacao
+@inject SessaoDoUsuario Sessao
+@inject ApiVolumo Api
+@inject NavigationManager Navegacao
+
+<PageTitle>Treinos · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    @* O personal também treina: aqui ficam os treinos dele mesmo, separados dos alunos. *@
+    <h1><AuthorizeView Roles="Personal"><Authorized>Meus treinos</Authorized><NotAuthorized>Treinos</NotAuthorized></AuthorizeView></h1>
+    <span class="linha-de-botoes alinhada">
+        <button type="button" class="botao botao-texto" disabled="@_atualizando" @onclick="() => CarregarAsync(atualizar: true)">@(_atualizando ? "Atualizando" : "Atualizar")</button>
+        @if (!Sessao.Offline)
+        {
+            <a class="botao botao-principal" href="treinos/novo">Novo treino</a>
+        }
+    </span>
+</header>
+
+<div class="pilha" style="--espaco: 24px">
+    <IndicadorDeSincronizacao />
+
+    @if (_emAndamento is not null && _treinos?.Find(t => t.Id == _emAndamento.TreinoId) is { } atual)
+    {
+        <a class="em-andamento" href="treinos/@atual.Id/sessao">
+            <span class="rotulo">Em andamento</span>
+            <span class="treino-nome">@atual.Nome</span>
+            <span class="secundario"><span class="numero">@_emAndamento.Series.Count</span> @Rotulos.Plural(_emAndamento.Series.Count, "série feita", "séries feitas") · continuar</span>
+        </a>
+    }
+
+    @if (_treinos is null)
+    {
+        <p class="secundario">@(_erro ?? "Carregando.")</p>
+    }
+    else if (_treinos.Count == 0)
+    {
+        <div class="painel painel-corpo">
+            <AuthorizeView Roles="Personal">
+                <Authorized>
+                    <p>Monte aqui os seus próprios treinos e registre as séries como os seus alunos fazem. Dá para começar de um dos seus modelos.</p>
+                </Authorized>
+                <NotAuthorized>
+                    <p>Seu personal ainda não mandou nenhum treino. Assim que o treino for montado, aparece aqui. Se quiser, monte um treino seu em "Novo treino".</p>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    }
+    else
+    {
+        var proprios = _treinos.Where(t => t.MontadoPeloAluno).ToList();
+        var reordena = proprios.Count > 1 && !Sessao.Offline;
+        var hoje = DateTime.Now.DayOfWeek;
+        <ul class="lista painel">
+            @foreach (var treino in _treinos)
+            {
+                <li @key="treino.Id">
+                    <a class="link-largo" href="treinos/@treino.Id">
+                        <span class="treino-nome">@treino.Nome</span>
+                        @if (Rotulos.Dias(treino.DiasOuVazio) is { } dias)
+                        {
+                            <span class="linha-abaixo secundario">@dias</span>
+                        }
+                    </a>
+                    @if (treino.DiasOuVazio.Contains(hoje))
+                    {
+                        <span class="etiqueta etiqueta-acao">Hoje</span>
+                    }
+                    @if (treino.MontadoPeloAluno && _treinos.Exists(t => !t.MontadoPeloAluno))
+                    {
+                        <AuthorizeView Roles="Personal">
+                            <NotAuthorized><span class="etiqueta">Seu</span></NotAuthorized>
+                        </AuthorizeView>
+                    }
+                    <span class="linha-de-botoes alinhada">
+                        <span class="secundario"><span class="numero">@treino.QuantidadeDeExercicios</span> @Rotulos.Plural(treino.QuantidadeDeExercicios, "exercício", "exercícios")</span>
+                        @if (reordena && treino.MontadoPeloAluno)
+                        {
+                            @* Só os montados pela pessoa trocam de lugar (entre si); os do personal ficam onde ele pôs. *@
+                            var posicao = proprios.IndexOf(treino);
+                            <button class="botao botao-texto" title="Subir" aria-label="Subir @treino.Nome" disabled="@(posicao == 0 || _reordenando)"
+                                    @onclick="() => MoverAsync(treino, -1)">↑</button>
+                            <button class="botao botao-texto" title="Descer" aria-label="Descer @treino.Nome" disabled="@(posicao == proprios.Count - 1 || _reordenando)"
+                                    @onclick="() => MoverAsync(treino, 1)">↓</button>
+                        }
+                    </span>
+                </li>
+            }
+        </ul>
+        @if (_erroOrdem is not null)
+        {
+            <p class="aviso aviso-erro" role="alert">@_erroOrdem</p>
+        }
+    }
+
+    @if (_sessoes is not null && (_sessoes.Count > 0 || _treinos is { Count: > 0 }))
+    {
+        <CalendarioDeTreinos Sessoes="_sessoes" Treinos="_treinos" ComLinks="true" />
+    }
+
+    @if (_sessoes is { Count: > 0 })
+    {
+        <section class="painel">
+            <div class="painel-cabecalho"><h2>Últimos treinos</h2></div>
+            <ul class="lista">
+                @foreach (var sessao in _sessoes.Take(5))
+                {
+                    <li>
+                        <a class="link-largo" href="historico/@sessao.Id">
+                            <span class="treino-nome">@(sessao.NomeDoTreino ?? "Treino livre")</span>
+                            <span class="secundario numero"> · @Rotulos.Data(sessao.IniciadaEm)</span>
+                        </a>
+                        <span class="secundario">@Rotulos.NumerosDaSessao(sessao)</span>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    <p class="campo-ajuda"><a href="presets">Presets de séries</a>: esquemas como "Força 5 × 5" ou "Pirâmide crescente" para montar treinos mais rápido.</p>
+</div>
+
+@code {
+    private List<TreinoResumo>? _treinos;
+    private List<SessaoResumo>? _sessoes;
+    private SessaoEmAndamento? _emAndamento;
+    private string? _erro;
+
+    private bool _atualizando;
+    private bool _reordenando;
+    private string? _erroOrdem;
+
+    /// <summary>
+    /// Com "?todos=true" mostra a lista mesmo com um treino em andamento (links "Treinos" de dentro do treino);
+    /// sem ele (menu, abrir o app), quem tem treino em andamento vai direto para ele.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "todos")]
+    public bool Todos { get; set; }
+
+    protected override Task OnInitializedAsync() => CarregarAsync(atualizar: false);
+
+    /// <summary>
+    /// Troca o treino de lugar com o próximo (ou anterior) montado pela pessoa, pulando os do personal.
+    /// A tela muda na hora; se a API recusar, a lista é buscada de novo.
+    /// </summary>
+    private async Task MoverAsync(TreinoResumo treino, int direcao)
+    {
+        if (_treinos is null)
+        {
+            return;
+        }
+
+        var proprios = _treinos.Where(t => t.MontadoPeloAluno).ToList();
+        var destino = proprios.IndexOf(treino) + direcao;
+        if (destino < 0 || destino >= proprios.Count)
+        {
+            return;
+        }
+
+        _reordenando = true;
+        var outro = proprios[destino];
+        var (i, j) = (_treinos.IndexOf(treino), _treinos.IndexOf(outro));
+        (_treinos[i], _treinos[j]) = (_treinos[j], _treinos[i]);
+        var resultado = await Api.PutAsync("treinos/ordem", new OrdemDosTreinos([.. _treinos.Where(t => t.MontadoPeloAluno).Select(t => t.Id)]));
+        _erroOrdem = resultado.Erro;
+        await Treinos.EsquecerCopiaDoTreinoAsync(null);
+        if (!resultado.Ok)
+        {
+            await CarregarAsync(atualizar: true);
+        }
+
+        _reordenando = false;
+    }
+
+    /// <summary>
+    /// Usa a cópia do aparelho enquanto ela vale (sem chamar a API); só quando veio da API baixa de novo
+    /// os detalhes para offline. O botão "Atualizar" força a busca.
+    /// </summary>
+    private async Task CarregarAsync(bool atualizar)
+    {
+        _atualizando = true;
+        try
+        {
+            var treinos = await Treinos.ListarAsync(atualizar);
+            _treinos = treinos.Valor;
+            _erro = treinos.Erro;
+            _emAndamento = await Treinos.EmAndamentoAsync();
+            // Só redireciona se o treino ainda está na lista (arquivado, a sessão não abriria e voltaria para cá).
+            if (!Todos && !atualizar && _emAndamento is not null && _treinos?.Exists(t => t.Id == _emAndamento.TreinoId) == true)
+            {
+                Navegacao.NavigateTo($"treinos/{_emAndamento.TreinoId}/sessao", replace: true);
+                return;
+            }
+
+            _sessoes = await Treinos.SessoesAsync();
+            StateHasChanged();
+
+            await Sincronizacao.IniciarAsync();
+            if (_treinos is not null && !treinos.DoAparelho)
+            {
+                // Depois da sincronização, para o histórico já incluir o que acabou de subir.
+                _sessoes = await Treinos.BaixarParaOfflineAsync(_treinos) ?? _sessoes;
+            }
+        }
+        finally
+        {
+            _atualizando = false;
+        }
+    }
+}

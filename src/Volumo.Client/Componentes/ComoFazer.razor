@@ -1,0 +1,103 @@
+@* "Como fazer": vídeo curto em loop (ou foto), equipamento, músculos e instruções em passos.
+   Só busca na API quando a pessoa abre; sem internet, avisa. *@
+@using Volumo.Shared.Autenticacao
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+<div class="como-fazer">
+    <button type="button" class="ferramenta" aria-expanded="@(_aberto ? "true" : "false")" @onclick="AlternarAsync">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            @if (_aberto)
+            {
+                <path d="M6 6l12 12M18 6L6 18" />
+            }
+            else
+            {
+                <circle cx="12" cy="12" r="9.5" />
+                <path d="M10 8.5v7l5.5-3.5z" fill="currentColor" />
+            }
+        </svg>
+        <span>@(_aberto ? "Fechar" : "Como fazer")</span>
+    </button>
+
+    @if (_aberto)
+    {
+        <div class="como-fazer-corpo ferramenta-corpo pilha" style="--espaco: 12px">
+            @if (_detalhe is null)
+            {
+                <p class="secundario">@(_erro ?? "Carregando.")</p>
+            }
+            else
+            {
+                @if (_detalhe.VideoUrl is { } video)
+                {
+                    <video class="como-fazer-midia" src="@video" muted loop autoplay playsinline aria-label="Execução de @_detalhe.Nome"></video>
+                }
+                else if (_detalhe.FotoUrl is { } foto)
+                {
+                    <img class="como-fazer-midia" src="@foto" alt="@_detalhe.Nome" />
+                }
+
+                @if (_detalhe.Equipamento is { } equipamento)
+                {
+                    <p class="secundario">Equipamento: @Rotulos.De(equipamento).ToLowerInvariant()</p>
+                }
+
+                <MapaMuscular Principal="_detalhe.GrupoMuscular" Secundarios="_detalhe.MusculosSecundarios" Corpo="_corpo" />
+
+                @if (_detalhe.Instrucoes.Count > 0)
+                {
+                    <ol class="como-fazer-passos">
+                        @foreach (var passo in _detalhe.Instrucoes)
+                        {
+                            <li>@passo</li>
+                        }
+                    </ol>
+                }
+                else if (_detalhe.VideoUrl is null && _detalhe.FotoUrl is null)
+                {
+                    <p class="secundario">Este exercício ainda não tem instruções. Em caso de dúvida, fale com seu personal.</p>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _aberto;
+    private ExercicioDetalhe? _detalhe;
+    private string? _erro;
+    private Guid _carregado;
+    private CorpoDoDesenho _corpo = CorpoDoDesenho.Masculino;
+
+    [Parameter, EditorRequired]
+    public Guid ExercicioId { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // Mudou de exercício (próxima etapa do treino): fecha e esquece o anterior.
+        if (_carregado != ExercicioId)
+        {
+            _aberto = false;
+            _detalhe = null;
+            _erro = null;
+        }
+    }
+
+    private async Task AlternarAsync()
+    {
+        _aberto = !_aberto;
+        if (!_aberto || (_detalhe is not null && _carregado == ExercicioId))
+        {
+            return;
+        }
+
+        _carregado = ExercicioId;
+        var resultado = await Api.GetAsync<ExercicioDetalhe>($"exercicios/{ExercicioId}");
+        _detalhe = resultado.Valor;
+        _erro = resultado.Status == 0 ? "Sem conexão: as instruções aparecem quando a internet voltar." : resultado.Erro;
+
+        // Desenho do corpo escolhido na conta (a leitura fica no cache da aba por alguns minutos).
+        _corpo = (await Api.GetAsync<DadosDaConta>("conta")).Valor?.CorpoDoDesenho ?? CorpoDoDesenho.Masculino;
+    }
+}

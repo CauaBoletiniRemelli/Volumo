@@ -1,0 +1,50 @@
+@* Dias da semana do treino: cada toque marca ou desmarca o dia e grava na hora (precisa de internet).
+   Só para quem pode alterar o treino; para os outros, basta o texto de Rotulos.Dias. *@
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+<div class="escolha-de-dias" role="group" aria-label="Dias da semana de @Nome">
+    @foreach (var dia in Rotulos.Semana)
+    {
+        var marcado = Dias.Contains(dia);
+        <button type="button" class="dia @(marcado ? "dia-marcado" : null)" aria-pressed="@(marcado ? "true" : "false")"
+                aria-label="@Rotulos.DiaPorExtenso(dia)" disabled="@_salvando" @onclick="() => AlternarAsync(dia)">
+            @Rotulos.DiaCurto(dia)
+        </button>
+    }
+</div>
+@if (_erro is not null)
+{
+    <p class="campo-erro" role="alert">@_erro</p>
+}
+
+@code {
+    private bool _salvando;
+    private string? _erro;
+
+    [Parameter, EditorRequired]
+    public Guid TreinoId { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Nome { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DayOfWeek> Dias { get; set; } = [];
+
+    /// <summary>Chamado depois que a API gravou, com os dias novos.</summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<DayOfWeek>> DiasChanged { get; set; }
+
+    private async Task AlternarAsync(DayOfWeek dia)
+    {
+        IReadOnlyList<DayOfWeek> novos = Dias.Contains(dia) ? [.. Dias.Where(d => d != dia)] : [.. Dias, dia];
+        _salvando = true;
+        var resultado = await Api.PutAsync($"treinos/{TreinoId}/dias", new DiasDoTreino(novos));
+        _salvando = false;
+        _erro = resultado.Erro;
+        if (resultado.Ok)
+        {
+            await DiasChanged.InvokeAsync(novos);
+        }
+    }
+}

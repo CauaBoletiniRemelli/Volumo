@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Volumo</title>
+    <meta name="description" content="Treinos montados pelo seu personal, registrados na academia, mesmo sem internet." />
+    <meta name="theme-color" content="#0F1115" />
+    <meta name="color-scheme" content="dark" />
+    <base href="/" />
+    <link rel="preload" id="webassembly" />
+    <link rel="preload" href="fonts/barlow-condensed-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link href="Volumo.Client.styles.css" rel="stylesheet" />
+    <script type="importmap"></script>
+</head>
+
+<body>
+    <div id="app">
+        <div class="carregando" role="status">
+            <span class="carregando-marca">Volumo</span>
+            <span class="carregando-barra"></span>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui" role="alert">
+        Algo deu errado e o app precisa recarregar.
+        <a href="." class="reload">Recarregar</a>
+    </div>
+    <script src="js/volumo.js"></script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' });
+        }
+    </script>
+</body>
+
+</html>

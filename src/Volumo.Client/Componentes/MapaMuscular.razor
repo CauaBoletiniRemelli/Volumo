@@ -1,0 +1,59 @@
+@* Músculos que o exercício trabalha, no corpo de frente e de costas: principal em limão, secundários
+   em limão apagado. A legenda repete tudo em texto (a cor nunca é a única informação). *@
+@using Volumo.Shared.Autenticacao
+@using Volumo.Shared.Treinos
+@inject DesenhosDoCorpo Desenhos
+
+@if (_frente is not null && _costas is not null)
+{
+    <figure class="mapa-muscular">
+        <div class="mapa-corpos" aria-hidden="true">
+            <div class="mapa-corpo">@((MarkupString)_frente)<span class="rotulo">Frente</span></div>
+            <div class="mapa-corpo">@((MarkupString)_costas)<span class="rotulo">Costas</span></div>
+        </div>
+        <figcaption class="mapa-legenda">
+            <span><span class="amostra amostra-principal" aria-hidden="true"></span>Principal: @Rotulos.De(Principal).ToLowerInvariant()</span>
+            @if (Secundarios.Count > 0)
+            {
+                <span><span class="amostra amostra-secundario" aria-hidden="true"></span>Também: @string.Join(", ", Secundarios.Select(Rotulos.De)).ToLowerInvariant()</span>
+            }
+        </figcaption>
+    </figure>
+}
+
+@code {
+    private string? _frente;
+    private string? _costas;
+    private string? _desenhado;
+
+    [Parameter, EditorRequired]
+    public GrupoMuscular Principal { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<GrupoMuscular> Secundarios { get; set; } = [];
+
+    [Parameter]
+    public CorpoDoDesenho Corpo { get; set; } = CorpoDoDesenho.Masculino;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var chave = $"{Corpo}|{Principal}|{string.Join(',', Secundarios)}";
+        if (chave == _desenhado)
+        {
+            return;
+        }
+
+        _desenhado = chave;
+        var principais = DesenhosDoCorpo.Areas(Principal).ToHashSet();
+        var secundarias = Secundarios.SelectMany(DesenhosDoCorpo.Areas).ToHashSet();
+        if (principais.Count == 0)
+        {
+            // Cardio (ou grupo sem área no desenho): não mostra um boneco vazio.
+            _frente = _costas = null;
+            return;
+        }
+
+        _frente = await Desenhos.DesenharAsync(Corpo, costas: false, principais, secundarias);
+        _costas = await Desenhos.DesenharAsync(Corpo, costas: true, principais, secundarias);
+    }
+}

@@ -3,6 +3,12 @@
 Site/PWA para quem treina e para personal trainers montarem e venderem treinos.
 Planejamento de 14/10/2026.
 
+## Regras de trabalho para o Claude
+- **Não fazer commits** (nem push, amend ou merge). O usuário revisa e commita por conta própria; deixar as mudanças no working tree.
+- **Ao concluir cada fase ou etapa**, terminar a resposta com duas explicações do que foi feito:
+  - **Técnica:** decisões de arquitetura, padrões, bibliotecas e por que foram escolhidos.
+  - **Não técnica (resumida):** poucas frases, sem jargão, dizendo o que mudou para o produto e para quem vai usar.
+
 ---
 
 ## 1. Diferenciais para fugir do padrão
@@ -12,23 +18,60 @@ O diferencial está no que acontece **entre** os treinos e na relação entre al
 ### Para quem treina
 - **Progressão automática de carga**: sugere a carga da próxima sessão com base no desempenho, nas repetições de sobra (RIR/RPE) e no objetivo.
 - **Modo academia lotada**: se o aparelho está ocupado, sugere um substituto que trabalha o mesmo músculo.
+- **Aparelho indisponível ou inexistente na academia** (ideia de 16/10/2026): o aluno escolhe entre (a) fazer uma **variação livre** do exercício (ex.: halteres em vez de máquina) ou (b) **substituir** por outro exercício de uma lista de similares (mesmo músculo e movimento). A troca fica registrada na sessão para o personal ver.
+- **Vídeos de execução** (ideia de 16/10/2026): cada exercício do catálogo com um vídeo curto mostrando a execução correta, pensando principalmente em iniciantes.
+  - **Padronização (decisão de 20/10/2026), tomando como base a biblioteca de exercícios do Hevy:** vídeos curtos e diretos (poucos segundos, em loop, sem som nem narração, só o movimento), todos da **mesma fonte** e no mesmo estilo (mesmo enquadramento, fundo neutro, mesma pessoa ou modelo, mesma duração aproximada). Nada de misturar vídeos de origens diferentes (YouTube, redes sociais) no catálogo.
+  - Junto do vídeo, cada exercício do catálogo traz o mesmo pacote de informações: músculo principal e secundários, equipamento e instruções curtas em passos.
+  - Vídeo próprio do personal (exercícios personalizados) fica separado do catálogo e identificado como dele, para não quebrar o padrão.
 - **Treino que se adapta ao dia**: "dormi mal" ou "só tenho 30 min" encurta ou ajusta o treino sem perder o foco da semana.
 - **Mapa muscular de volume semanal**: boneco colorido mostrando músculos com pouco ou muito volume.
 - **Recordes e histórico visual**: gráficos de evolução e alertas de novo recorde pessoal.
+- **Calendário e dias da semana** (pedido de 28/10/2026, implementado): calendário do mês com os dias treinados, para o aluno e para o personal; o personal marca em que dias da semana o aluno faz cada treino (o aluno marca nos treinos dele), e o treino do dia aparece com a etiqueta "Hoje".
 - **Offline e uso com uma mão**: botões grandes, cronômetro de descanso automático, sem login a cada uso.
 
 ### Para personal trainers
 - **Construtor de treino rápido**: arrastar e soltar, templates reutilizáveis, periodização (mesociclos).
+  - **Presets de séries** (pedido de 25/10/2026, implementado): esquemas prontos (3 × 10, 4 × 8–12, 5 × 5, pirâmide crescente 10 · 8 · 5 · 3, 3 × 15–20, com aquecimento) e próprios, aplicados num exercício de uma vez; substituem as séries, sem carga. Personal e aluno criam os seus.
+- **Personal também treina** (pedido de 25/10/2026, implementado): todo personal tem também perfil de aluno e registra os próprios treinos em "Meus treinos", podendo começar de um modelo dele.
+- **Aluno monta o próprio treino** (avaliado e implementado em 25/10/2026): além dos treinos do personal, o aluno pode montar os seus; só ele altera, e o personal vê.
 - **Painel de alunos**: quem treinou, quem sumiu há 5 dias, quem estagnou numa carga.
+  - **Estagnação configurável por aluno** (decisão de 20/10/2026): o personal escolhe medir por dias ou por sessões sem subir peso; padrão de 15 dias sem subir peso, indicado na tela.
 - **Vitrine/loja própria**: página com o nome do personal para vender programas prontos, com Pix e cartão.
 - **Feedback por vídeo**: o aluno grava a execução e o personal comenta no ponto exato.
 - **Check-ins automáticos**: fotos, peso e medidas com comparativo lado a lado.
 - **White label leve**: logo e cores do personal no app do aluno.
 
+### Destaque principal: "o personal presente mesmo quando não está lá" (ideia de 28/10/2026)
+O personal vende presença, mas acompanha 20 ou 30 alunos e não consegue estar com todos. A proposta central do Volumo para ele pagar: o aluno sente que o personal está junto, sem dar mais trabalho ao personal. Três peças:
+- **Fila do dia do personal** (carro-chefe): em vez de só mostrar dados, uma lista curta de ações prontas, cada uma resolvida com 1 toque. Ex.: "João está há 3 sessões em 60 kg no supino → subir para 62,5 kg"; "Ana sumiu há 6 dias → mensagem pronta no WhatsApp"; "Pedro bateu recorde → parabenizar"; "Carla marcou dor no ombro → ver". Reaproveita estagnação, sumidos, recordes e sessões que já existem; é a mais barata de construir agora.
+- **Voz do personal durante o treino**: nota de voz curta (10–15 s) por exercício, tocada na sessão quando o aluno chega nele. Complementa o vídeo padronizado do catálogo (o vídeo ensina o movimento; a voz é o toque pessoal). Junto, o botão **"senti dor aqui"** no exercício, que gera alerta na fila do personal (cuidado com o aluno e proteção do personal).
+- **Retrospectiva do aluno com a marca do personal**: resumo visual mensal ou por ciclo (treinos, volume, recordes, semanas seguidas) em formato de story, com logo e @ do personal. O aluno posta e o personal ganha divulgação no Instagram; a ferramenta passa a trazer clientes para ele.
+
+Gancho por plano (a validar): Grátis com painel básico; Start com a fila do dia; Pro com voz por exercício, alertas de dor e relatórios; Elite com retrospectiva de marca própria e white label.
+
+Depois do beta, avaliar **cobrança dos alunos pelo personal no app** (Pix recorrente, lembrete de vencimento, taxa transparente): dor real e constrangedora do personal, mas envolve gateway, conta de recebimento e questões fiscais.
+
+Próximo passo: levar a fila do dia e a retrospectiva para as conversas com personais (seção 10) e perguntar se pagariam o plano por elas.
+
+### Para a plataforma (TI / dono do Volumo)
+- **Painel administrativo** (pedido de 20/10/2026, importante): visão de pagamentos e assinaturas (situação de cada personal, falhas de cobrança, comissões, MRR, churn), contas (personais e alunos, suspensão, CREF), uso da plataforma e saúde do sistema. Só para o papel Admin com 2FA; dados de alunos apenas agregados (LGPD). Detalhes e ordem em `docs/contexto-backend.md`, seção 8.
+
 ### Diferenciais mais ousados
 - Desafios entre alunos do mesmo personal (ranking de frequência, não de carga).
+- **Ranking de alunos com foto de check-in** (ideia de 16/10/2026): ao fim de cada treino o aluno tira uma foto, que valida o treino e soma pontos. Rankings por **personal**, **academia** e **cidade**. Cuidados levantados:
+  - Pontuar **constância** (treinos concluídos, semanas seguidas), nunca carga, para não incentivar exagero e lesão.
+  - **Participação opcional** (opt-in) e com apelido: aparecer num ranking público expõe a rotina e o local da pessoa.
+  - Foto é dado pessoal (imagem) e às vezes de saúde (corpo): consentimento próprio, não exibir publicamente por padrão, apagar na exclusão de conta. A foto pode ficar só como prova para o sistema/personal.
+  - Antifraude: foto tirada pela câmera dentro do app (não da galeria), horário do servidor, um check-in por treino/dia, e a sessão precisa ter séries registradas.
+  - Academia e cidade exigem saber onde a pessoa treina: preferir que ela escolha a academia num cadastro, em vez de rastrear GPS.
+  - ~~Começar pelo ranking por personal~~ **Mudança de 22/10/2026: o ranking é por círculo de amigos, não por personal.** O aluno convida quem quiser (amigos, de qualquer personal ou sem personal), e o ranking é feito entre as pessoas do círculo. Continuam valendo os cuidados acima (pontuar constância, nunca carga; participação opcional; foto não pública). Pontos a decidir: convite por link ou por e-mail, se quem é convidado precisa aceitar, se a pessoa pode estar em mais de um círculo e como sair dele. Depende do cadastro de aluno sem convite do personal (o mesmo do "Compartilhar treinos"). Academia e cidade ficam para depois, se fizer sentido.
 - Gerar treino com IA a partir de uma conversa, sempre revisável pelo personal.
 - Integração com relógios e Apple Health / Google Fit.
+- **Compartilhar treinos** (ideia de 21/10/2026): o aluno manda um link para outras pessoas seguirem o treino. Cuidados levantados:
+  - Treino montado pelo próprio aluno: compartilhamento livre. Treino prescrito pelo personal é o produto dele (concorre com a loja): só com autorização do personal e com o nome dele no treino, virando propaganda para ele.
+  - Link público só leitura com exercícios e séries, sem cargas nem histórico de quem compartilhou; "Copiar para meus treinos" exige criar conta; quem compartilhou pode desativar o link.
+  - Depende do cadastro de aluno sem convite (hoje o aluno só entra por convite). Depois do beta.
+- **Login com Google** (ideia de 21/10/2026), depois do beta: personal continua com o 2FA do app; aluno novo segue entrando pelo convite; conta existente com o mesmo e-mail só é ligada depois de um login com senha.
 
 ---
 
@@ -98,12 +141,14 @@ Escolha: **Blazor WebAssembly**, pela produtividade em C# e modelos compartilhad
 
 ### Banco e infraestrutura
 - **SQL Server**: Express (gratuito, limite de 10 GB por banco) no MVP; Azure SQL Database ou licença Standard ao crescer.
-- **Hospedagem**: Azure App Service + Azure SQL; para economizar, VPS Linux (Hetzner, DigitalOcean, Contabo) com SQL Server Express em Docker.
+- **Hospedagem**: **MonsterASP.NET** (https://admin.monsterasp.net/) para a API e o site (Blazor WebAssembly). Alternativas se crescer: Azure App Service + Azure SQL ou VPS Linux (Hetzner, DigitalOcean, Contabo) com SQL Server Express em Docker.
 - **Pagamentos**: Mercado Pago, Asaas ou Stripe (Pix e assinatura recorrente).
 - **Fotos e vídeos**: Azure Blob, AWS S3 ou Cloudflare R2.
 
 ### Stack final
-**C# + ASP.NET Core + EF Core + SQL Server + Blazor WebAssembly (PWA) + MudBlazor**
+**C# + ASP.NET Core + EF Core + SQL Server + Blazor WebAssembly (PWA) + componentes próprios**
+
+Mudança de 16/10/2026: no lugar do MudBlazor, componentes com CSS próprio. O MudBlazor segue o Material Design, com visual padronizado de "app gerado", e o briefing de design pede identidade própria (ver `docs/contexto-backend.md`, seção "Front"). Também deixa o app mais leve para carregar no celular.
 
 ---
 
@@ -228,9 +273,13 @@ Volumo.sln (ou .slnx no .NET 10)
 │   ├── Volumo.Domain          → Entidades e regras de negócio
 │   └── Volumo.Infrastructure  → EF Core, SQL Server, pagamentos, arquivos
 └── tests/
-    ├── Volumo.Domain.Tests
-    └── Volumo.Api.Tests
+    ├── Volumo.Domain.Tests        → regras das entidades
+    ├── Volumo.Api.Tests           → integração (API + LocalDB) e jornadas completas (Jornadas/)
+    └── Volumo.Architecture.Tests  → dependências entre camadas
+    (Volumo.E2E.Tests separado só quando houver ambiente publicado ou Playwright)
 ```
+
+Estado atual do backend, decisões e próximos passos: `docs/contexto-backend.md`.
 
 Referências:
 - Client → Shared
@@ -306,8 +355,7 @@ Levantar os custos mensais e calcular quantos personais pagantes cobrem tudo:
 
 | Custo | Observação |
 |---|---|
-| Hospedagem da API e banco | VPS com SQL Server Express é o mais barato no início |
-| Hospedagem do front | Estática; pode ser gratuita (Azure Static Web Apps, Cloudflare Pages) |
+| Hospedagem da API e do site | MonsterASP.NET (https://admin.monsterasp.net/) |
 | Domínio | .com.br e .com |
 | Armazenamento de fotos e vídeos | Cresce com o uso; Cloudflare R2 tende a ser o mais barato |
 | Gateway de pagamento | Taxa por transação |

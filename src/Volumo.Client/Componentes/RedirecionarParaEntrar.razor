@@ -1,0 +1,9 @@
+@inject NavigationManager Navegacao
+
+@code {
+    protected override void OnInitialized()
+    {
+        var voltar = Navegacao.ToBaseRelativePath(Navegacao.Uri);
+        Navegacao.NavigateTo(string.IsNullOrEmpty(voltar) ? "entrar" : $"entrar?voltar={Uri.EscapeDataString("/" + voltar)}", replace: true);
+    }
+}

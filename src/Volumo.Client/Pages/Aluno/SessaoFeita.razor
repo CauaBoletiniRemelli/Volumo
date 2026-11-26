@@ -1,0 +1,40 @@
+@page "/historico/{SessaoId:guid}"
+@attribute [Authorize(Roles = "Aluno")]
+@using Volumo.Shared.Sessoes
+@inject ApiVolumo Api
+
+<PageTitle>@(_resumo?.NomeDoTreino ?? "Treino feito") · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <p class="rotulo"><a href="treinos?todos=true">Treinos</a> · treino feito</p>
+    <h1>@(_resumo?.NomeDoTreino ?? "Treino")</h1>
+</header>
+
+@if (_resumo is null)
+{
+    <p class="secundario">@(_erro ?? "Carregando.")</p>
+}
+else
+{
+    <div class="pilha" style="--espaco: 24px; max-width: 640px">
+        <ResumoDaSessao Resumo="_resumo" />
+        <ExportarArquivo Titulo="Exportar este treino" Caminho="@($"sessoes/{SessaoId}/exportar")"
+                         NomeDoArquivo="@($"{_resumo.NomeDoTreino} {_resumo.Inicio.ToLocalTime():dd-MM-yyyy}")" />
+    </div>
+}
+
+@code {
+    private ResumoDeSessao? _resumo;
+    private string? _erro;
+
+    [Parameter]
+    public Guid SessaoId { get; set; }
+
+    /// <summary>Lê da API (o detalhe das sessões antigas não fica no aparelho).</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        var sessao = await Api.GetAsync<SessaoDetalhe>($"sessoes/{SessaoId}");
+        _resumo = sessao.Valor is { } detalhe ? ResumoDeSessao.De(detalhe) : null;
+        _erro = sessao.Status == 0 ? "Sem conexão: o detalhe do treino aparece quando a internet voltar." : sessao.Erro;
+    }
+}

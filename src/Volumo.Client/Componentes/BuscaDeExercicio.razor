@@ -1,0 +1,182 @@
+@* Busca no catálogo + exercícios do personal. Carrega a lista uma vez e filtra no aparelho. *@
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+
+<section class="busca painel" aria-label="@Titulo">
+    <div class="painel-cabecalho">
+        <h3>@Titulo</h3>
+        <button type="button" class="botao botao-texto" @onclick="OnFechar">Fechar</button>
+    </div>
+    <div class="painel-corpo pilha" style="--espaco: 14px">
+        <div class="campo">
+            <label class="rotulo" for="busca-exercicio">Buscar</label>
+            <input id="busca-exercicio" type="search" autocomplete="off" placeholder="@(SomenteGrupo is null ? "Supino, agachamento..." : "Esteira, bicicleta...")"
+                   @bind="_termo" @bind:event="oninput" />
+        </div>
+
+        @if (SomenteGrupo is null)
+        {
+            <div class="grupos" role="group" aria-label="Grupo muscular">
+                <button type="button" class="grupo @(_grupo is null ? "grupo-ativo" : null)" aria-pressed="@(_grupo is null)" @onclick="() => _grupo = null">Todos</button>
+                @foreach (var grupo in GruposVisiveis)
+                {
+                    <button type="button" class="grupo @(_grupo == grupo ? "grupo-ativo" : null)" aria-pressed="@(_grupo == grupo)" @onclick="() => _grupo = grupo">@Rotulos.De(grupo)</button>
+                }
+            </div>
+        }
+
+        @if (_exercicios is null)
+        {
+            <p class="secundario">@(_erro ?? "Carregando exercícios.")</p>
+        }
+        else
+        {
+            var encontrados = Filtrados().ToList();
+            @if (encontrados.Count == 0)
+            {
+                <p class="secundario">Nenhum exercício com esse nome.</p>
+            }
+            else
+            {
+                <ul class="lista resultados">
+                    @foreach (var exercicio in encontrados.Take(MaximoNaTela))
+                    {
+                        <li>
+                            <button type="button" class="resultado" @onclick="() => OnEscolher.InvokeAsync(exercicio)">
+                                @if (exercicio.FotoUrl is { } foto)
+                                {
+                                    <img class="miniatura" src="@foto" alt="" loading="lazy" />
+                                }
+                                <span class="resultado-nome">@exercicio.Nome</span>
+                                <span class="secundario">@Rotulos.De(exercicio.GrupoMuscular)@(exercicio.DoCatalogo ? null : " · seu")</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+                @if (encontrados.Count > MaximoNaTela)
+                {
+                    <p class="campo-ajuda">Mostrando @MaximoNaTela de @encontrados.Count. Digite mais para filtrar.</p>
+                }
+            }
+
+            @* Exercício personalizado é do personal: quem monta o próprio treino usa o catálogo. *@
+            @if (PodeCriar && !_criando)
+            {
+                <button type="button" class="botao botao-texto" @onclick="AbrirCriacao">Não achou? Criar exercício</button>
+            }
+            else if (PodeCriar)
+            {
+                <div class="criar pilha" style="--espaco: 12px">
+                    <div class="campo">
+                        <label class="rotulo" for="novo-exercicio-nome">Nome do exercício</label>
+                        <input id="novo-exercicio-nome" maxlength="100" @bind="_novoNome" />
+                    </div>
+                    @if (SomenteGrupo is null)
+                    {
+                        <div class="campo">
+                            <label class="rotulo" for="novo-exercicio-grupo">Grupo muscular</label>
+                            <select id="novo-exercicio-grupo" @bind="_novoGrupo">
+                                @foreach (var grupo in GruposVisiveis)
+                                {
+                                    <option value="@grupo">@Rotulos.De(grupo)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (_erroCriacao is not null)
+                    {
+                        <p class="aviso aviso-erro" role="alert">@_erroCriacao</p>
+                    }
+                    <div class="linha-de-botoes">
+                        <button type="button" class="botao botao-principal" disabled="@_enviando" @onclick="CriarAsync">Criar e adicionar</button>
+                        <button type="button" class="botao" @onclick="() => _criando = false">Cancelar</button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</section>
+
+@code {
+    private const int MaximoNaTela = 60;
+
+    private List<ExercicioResumo>? _exercicios;
+    private string? _erro;
+    private string _termo = string.Empty;
+    private GrupoMuscular? _grupo;
+    private bool _criando;
+    private string _novoNome = string.Empty;
+    private GrupoMuscular _novoGrupo = GrupoMuscular.Peitoral;
+    private string? _erroCriacao;
+    private bool _enviando;
+
+    [Parameter, EditorRequired]
+    public EventCallback<ExercicioResumo> OnEscolher { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnFechar { get; set; }
+
+    [Parameter]
+    public string Titulo { get; set; } = "Adicionar exercício";
+
+    /// <summary>Mostra só um grupo (ex.: Cardio, na aba de cardio) e cria exercícios nele.</summary>
+    [Parameter]
+    public GrupoMuscular? SomenteGrupo { get; set; }
+
+    /// <summary>Mostra "Criar exercício" (personalizado é só do personal).</summary>
+    [Parameter]
+    public bool PodeCriar { get; set; } = true;
+
+    /// <summary>Esconde um grupo (ex.: Cardio na aba de musculação, que tem aba própria).</summary>
+    [Parameter]
+    public GrupoMuscular? SemGrupo { get; set; }
+
+    private IEnumerable<GrupoMuscular> GruposVisiveis => Enum.GetValues<GrupoMuscular>().Where(g => g != SemGrupo);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _grupo = SomenteGrupo;
+        var resultado = await Api.GetAsync<List<ExercicioResumo>>("exercicios");
+        _exercicios = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+
+    private IEnumerable<ExercicioResumo> Filtrados()
+    {
+        var termo = Rotulos.ParaBusca(_termo.Trim());
+        return _exercicios!
+            .Where(e => e.GrupoMuscular != SemGrupo)
+            .Where(e => _grupo is null || e.GrupoMuscular == _grupo)
+            .Where(e => termo.Length == 0 || Rotulos.ParaBusca(e.Nome).Contains(termo, StringComparison.Ordinal));
+    }
+
+    private void AbrirCriacao()
+    {
+        _criando = true;
+        _novoNome = _termo.Trim();
+        _novoGrupo = _grupo ?? GrupoMuscular.Peitoral;
+        _erroCriacao = null;
+    }
+
+    private async Task CriarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_novoNome))
+        {
+            _erroCriacao = "Informe o nome do exercício.";
+            return;
+        }
+
+        _enviando = true;
+        var resultado = await Api.PostAsync<ExercicioResumo>("exercicios", new DadosDoExercicio(_novoNome.Trim(), _novoGrupo));
+        _enviando = false;
+        if (!resultado.Ok)
+        {
+            _erroCriacao = resultado.Erro;
+            return;
+        }
+
+        _exercicios!.Add(resultado.Valor!);
+        _criando = false;
+        await OnEscolher.InvokeAsync(resultado.Valor!);
+    }
+}

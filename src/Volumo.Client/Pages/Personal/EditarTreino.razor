@@ -1,0 +1,183 @@
+@page "/alunos/{AlunoId:guid}/treinos/novo"
+@page "/treinos/novo"
+@page "/treinos/{Id:guid}/editar"
+@attribute [Authorize(Roles = "Personal,Aluno")]
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+@inject TreinosDoAluno Treinos
+@inject NavigationManager Navegacao
+
+@* Dois usos: o personal montando o treino de um aluno (exige 2FA) e quem treina montando o próprio treino
+   (aluno, ou personal nos próprios treinos). O treino prescrito pelo personal o aluno só lê. *@
+
+<PageTitle>@(Id is null ? "Novo treino" : "Editar treino") · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    @if (Proprio)
+    {
+        <p class="rotulo"><a href="@Voltar">@(Id is null ? "Treinos" : "Voltar ao treino")</a></p>
+    }
+    else if (_alunoId is { } alunoId)
+    {
+        <p class="rotulo"><a href="alunos/@alunoId">Voltar ao aluno</a></p>
+    }
+    <h1>@(Id is null ? "Novo treino" : "Editar treino")</h1>
+</header>
+
+@if (Id is not null && _treino is null)
+{
+    <p class="secundario">@(_erro ?? "Carregando.")</p>
+}
+else if (Proprio && _treino is not null && _treino.AlunoId != Sessao.UsuarioId)
+{
+    <p class="aviso">Este treino foi montado pelo aluno. Só ele pode alterar; você acompanha pelas sessões que ele registra.</p>
+}
+else if (Proprio)
+{
+    <div class="pilha" style="--espaco: 24px">
+        @if (Id is null && _modelos is { Count: > 0 })
+        {
+            @* Personal treinando: os modelos dele servem de ponto de partida (vira uma cópia, como para um aluno). *@
+            <div class="campo">
+                <label class="rotulo" for="partir-de-modelo">Começar de um modelo</label>
+                <select id="partir-de-modelo" disabled="@_carregandoModelo" @onchange="e => UsarModeloAsync(e.Value as string)">
+                    <option value="">Treino em branco</option>
+                    @foreach (var modelo in _modelos)
+                    {
+                        <option value="@modelo.Id">@modelo.Nome</option>
+                    }
+                </select>
+            </div>
+        }
+        <ConstrutorDeTreino @key="_versao" NomeInicial="@_nomeInicial" ItensIniciais="@_itensIniciais" CardiosIniciais="@_cardiosIniciais"
+                            MomentoInicial="_momentoInicial" OnSalvar="SalvarProprioAsync" Salvando="_salvando" Erro="@_erro"
+                            TextoDoBotao="Salvar treino" Cancelar="@Voltar" DoProprioAluno="true" PodeCriarExercicio="PersonalComDoisFatores" />
+    </div>
+}
+else
+{
+    <ExigeDoisFatores>
+        <ConstrutorDeTreino NomeInicial="@_nomeInicial" ItensIniciais="@_itensIniciais" CardiosIniciais="@_cardiosIniciais"
+                            MomentoInicial="_momentoInicial" OnSalvar="SalvarDoAlunoAsync"
+                            Salvando="_salvando" Erro="@_erro" TextoDoBotao="Salvar treino" Cancelar="@($"alunos/{_alunoId}")" />
+    </ExigeDoisFatores>
+}
+
+@code {
+    private TreinoDetalhe? _treino;
+    private Guid? _alunoId;
+    private string? _erro;
+    private bool _salvando;
+    private bool _personal;
+    private List<TemplateResumo>? _modelos;
+    private bool _carregandoModelo;
+    private int _versao;
+    private string? _nomeInicial;
+    private IReadOnlyList<ItemDoPlanoSaida>? _itensIniciais;
+    private IReadOnlyList<CardioDoPlanoSaida>? _cardiosIniciais;
+    private MomentoDoCardio _momentoInicial = MomentoDoCardio.Depois;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? Autenticacao { get; set; }
+
+    [Parameter]
+    public Guid? AlunoId { get; set; }
+
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    /// <summary>Treino da própria pessoa: novo sem aluno na rota, ou existente sem personal (montado pelo aluno).</summary>
+    private bool Proprio => Id is null ? AlunoId is null : _treino?.PersonalId is null;
+
+    private bool PersonalComDoisFatores => _personal && Sessao.ComDoisFatores;
+
+    private string Voltar => Id is { } id ? $"treinos/{id}" : "treinos?todos=true";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _personal = (await Autenticacao!).User.IsInRole("Personal");
+        _alunoId = AlunoId;
+        if (Id is { } id)
+        {
+            var resultado = await Api.GetAsync<TreinoDetalhe>($"treinos/{id}");
+            _treino = resultado.Valor;
+            _erro = resultado.Erro;
+            _alunoId = _treino?.AlunoId;
+            if (_treino is not null)
+            {
+                Preencher(_treino.Nome, _treino.Itens, _treino.Cardios, _treino.MomentoDoCardio);
+            }
+        }
+        else if (AlunoId is null && PersonalComDoisFatores)
+        {
+            _modelos = (await Api.GetAsync<List<TemplateResumo>>("templates")).Valor;
+        }
+    }
+
+    private void Preencher(string nome, IReadOnlyList<ItemDoPlanoSaida>? itens, IReadOnlyList<CardioDoPlanoSaida>? cardios, MomentoDoCardio momento)
+    {
+        (_nomeInicial, _itensIniciais, _cardiosIniciais, _momentoInicial) = (nome, itens, cardios, momento);
+    }
+
+    /// <summary>Recria o construtor com o modelo escolhido (ou em branco). O que já estava montado é trocado.</summary>
+    private async Task UsarModeloAsync(string? id)
+    {
+        _erro = null;
+        if (!Guid.TryParse(id, out var modeloId))
+        {
+            Preencher(string.Empty, null, null, MomentoDoCardio.Depois);
+            _versao++;
+            return;
+        }
+
+        _carregandoModelo = true;
+        var resultado = await Api.GetAsync<TemplateDetalhe>($"templates/{modeloId}");
+        _carregandoModelo = false;
+        if (resultado.Valor is { } modelo)
+        {
+            Preencher(modelo.Nome, modelo.Itens, modelo.Cardios, modelo.MomentoDoCardio);
+            _versao++;
+        }
+
+        _erro = resultado.Erro;
+    }
+
+    private async Task SalvarProprioAsync(PlanoDeTreinoEntrada plano)
+    {
+        _salvando = true;
+        Guid? treinoId = Id;
+        string? erro;
+        if (Id is { } id)
+        {
+            erro = (await Api.PutAsync($"treinos/{id}", plano)).Erro;
+        }
+        else
+        {
+            var criado = await Api.PostAsync<RecursoCriado>("treinos", plano);
+            (erro, treinoId) = (criado.Erro, criado.Valor?.Id);
+        }
+
+        _salvando = false;
+        _erro = erro;
+        if (erro is null)
+        {
+            await Treinos.EsquecerCopiaDoTreinoAsync(treinoId);
+            Navegacao.NavigateTo(treinoId is { } novo ? $"treinos/{novo}" : "treinos?todos=true");
+        }
+    }
+
+    private async Task SalvarDoAlunoAsync(PlanoDeTreinoEntrada plano)
+    {
+        _salvando = true;
+        var resultado = Id is { } id
+            ? (await Api.PutAsync($"treinos/{id}", plano)).Erro
+            : (await Api.PostAsync<RecursoCriado>($"alunos/{AlunoId}/treinos", plano)).Erro;
+        _salvando = false;
+        _erro = resultado;
+        if (resultado is null)
+        {
+            Navegacao.NavigateTo($"alunos/{_alunoId}");
+        }
+    }
+}

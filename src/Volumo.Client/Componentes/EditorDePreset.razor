@@ -1,0 +1,167 @@
+@* Nome e séries de um preset (tipo, repetições e descanso; sem carga). Entrega o preset inteiro ao salvar. *@
+@using Volumo.Shared.Treinos
+
+<div class="editor pilha painel painel-corpo" style="--espaco: 16px">
+    <h2>@Titulo</h2>
+
+    <div class="campo">
+        <label class="rotulo" for="preset-nome">Nome</label>
+        <input id="preset-nome" maxlength="@NomeMaximo" placeholder="Pirâmide do peito" @bind="_nome" />
+    </div>
+
+    <div class="series" role="table" aria-label="Séries do preset">
+        <div class="serie serie-titulos" role="row">
+            <span role="columnheader">Série</span>
+            <span role="columnheader">Tipo</span>
+            <span role="columnheader">Reps</span>
+            <span role="columnheader">Descanso (s)</span>
+            <span role="columnheader"><span class="visualmente-oculto">Remover</span></span>
+        </div>
+        @for (var s = 0; s < _series.Count; s++)
+        {
+            var indice = s;
+            var serie = _series[indice];
+            <div class="serie" role="row" @key="serie">
+                <span class="serie-numero numero" role="cell">@(indice + 1)</span>
+                <span role="cell">
+                    <select aria-label="Tipo da série @(indice + 1)" @bind="serie.Tipo">
+                        <option value="@TipoDeSerie.Trabalho">Trabalho</option>
+                        <option value="@TipoDeSerie.Aquecimento">Aquecimento</option>
+                        <option value="@TipoDeSerie.Preparatoria">Preparatória</option>
+                    </select>
+                </span>
+                <span class="serie-reps" role="cell">
+                    <input type="number" min="1" max="100" aria-label="Repetições mínimas da série @(indice + 1)" @bind="serie.RepeticoesMinimas" />
+                    <span class="secundario">a</span>
+                    <input type="number" min="1" max="100" aria-label="Repetições máximas da série @(indice + 1)" @bind="serie.RepeticoesMaximas" />
+                </span>
+                <span role="cell">
+                    <input type="number" min="0" max="900" step="15" aria-label="Descanso em segundos da série @(indice + 1)" @bind="serie.DescansoSegundos" />
+                </span>
+                <span role="cell">
+                    <button type="button" class="botao-icone" aria-label="Remover série @(indice + 1)" disabled="@(_series.Count == 1)" @onclick="() => _series.RemoveAt(indice)">×</button>
+                </span>
+            </div>
+        }
+    </div>
+
+    <button type="button" class="botao botao-texto mais-serie" disabled="@(_series.Count >= MaximoSeries)" @onclick="AdicionarSerie">+ Série</button>
+    <p class="campo-ajuda">A carga não entra no preset: ela fica em cada treino, porque muda de exercício para exercício.</p>
+
+    @if ((_erroLocal ?? Erro) is { } erro)
+    {
+        <p class="aviso aviso-erro" role="alert">@erro</p>
+    }
+
+    <div class="linha-de-botoes">
+        <button type="button" class="botao botao-principal" disabled="@Salvando" @onclick="SalvarAsync">Salvar preset</button>
+        <button type="button" class="botao" @onclick="OnCancelar">Cancelar</button>
+    </div>
+</div>
+
+@code {
+    private const int NomeMaximo = 60;
+    private const int MaximoSeries = 20;
+
+    private readonly List<SerieEditavel> _series = [];
+    private string _nome = string.Empty;
+    private string? _erroLocal;
+
+    [Parameter, EditorRequired]
+    public string Titulo { get; set; } = default!;
+
+    [Parameter]
+    public string? NomeInicial { get; set; }
+
+    /// <summary>Séries para começar (preset em edição ou pronto copiado); sem elas, 3 de 8 a 12.</summary>
+    [Parameter]
+    public IReadOnlyList<SerieDoPreset>? SeriesIniciais { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<PresetDeSeriesEntrada> OnSalvar { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnCancelar { get; set; }
+
+    [Parameter]
+    public bool Salvando { get; set; }
+
+    [Parameter]
+    public string? Erro { get; set; }
+
+    /// <summary>A página recria o editor (@key) para outro preset; aqui só copia na criação.</summary>
+    protected override void OnInitialized()
+    {
+        _nome = NomeInicial ?? string.Empty;
+        if (SeriesIniciais is { Count: > 0 } series)
+        {
+            _series.AddRange(series.Select(s => new SerieEditavel
+            {
+                Tipo = s.Tipo,
+                RepeticoesMinimas = s.RepeticoesMinimas,
+                RepeticoesMaximas = s.RepeticoesMaximas,
+                DescansoSegundos = s.DescansoSegundos,
+            }));
+        }
+        else
+        {
+            _series.AddRange([new SerieEditavel(), new SerieEditavel(), new SerieEditavel()]);
+        }
+    }
+
+    private void AdicionarSerie() => _series.Add(_series.Count > 0 ? _series[^1].Copia() : new SerieEditavel());
+
+    private async Task SalvarAsync()
+    {
+        _erroLocal = Validar();
+        if (_erroLocal is null)
+        {
+            await OnSalvar.InvokeAsync(new PresetDeSeriesEntrada(
+                _nome.Trim(),
+                [.. _series.Select(s => new SerieDoPreset(s.Tipo, s.RepeticoesMinimas, s.RepeticoesMaximas, s.DescansoSegundos))]));
+        }
+    }
+
+    /// <summary>Mesmos limites do domínio, para avisar antes de enviar. A API valida de novo.</summary>
+    private string? Validar()
+    {
+        if (string.IsNullOrWhiteSpace(_nome))
+        {
+            return "Dê um nome ao preset.";
+        }
+
+        for (var s = 0; s < _series.Count; s++)
+        {
+            var serie = _series[s];
+            if (serie.RepeticoesMinimas is < 1 or > 100 || serie.RepeticoesMaximas is < 1 or > 100)
+            {
+                return $"Série {s + 1}: repetições entre 1 e 100.";
+            }
+
+            if (serie.RepeticoesMinimas > serie.RepeticoesMaximas)
+            {
+                return $"Série {s + 1}: o mínimo de repetições não pode passar do máximo.";
+            }
+
+            if (serie.DescansoSegundos is < 0 or > 900)
+            {
+                return $"Série {s + 1}: descanso entre 0 e 900 segundos.";
+            }
+        }
+
+        return null;
+    }
+
+    private sealed class SerieEditavel
+    {
+        public TipoDeSerie Tipo { get; set; } = TipoDeSerie.Trabalho;
+
+        public int RepeticoesMinimas { get; set; } = 8;
+
+        public int RepeticoesMaximas { get; set; } = 12;
+
+        public int DescansoSegundos { get; set; } = 90;
+
+        public SerieEditavel Copia() => (SerieEditavel)MemberwiseClone();
+    }
+}

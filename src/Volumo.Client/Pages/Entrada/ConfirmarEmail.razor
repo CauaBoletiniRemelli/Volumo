@@ -1,0 +1,39 @@
+@page "/confirmar-email"
+@layout EntradaLayout
+@inject ApiVolumo Api
+
+<PageTitle>Confirmar e-mail · Volumo</PageTitle>
+
+<div class="pilha" style="--espaco: 20px">
+    @if (_resultado is null)
+    {
+        <h1>Confirmando</h1>
+        <p class="secundario">Um instante.</p>
+    }
+    else if (_resultado.Ok)
+    {
+        <h1>E-mail confirmado</h1>
+        <p>Sua conta está ativa. Entre com o e-mail e a senha que você cadastrou.</p>
+        <a class="botao botao-principal" href="entrar">Entrar</a>
+    }
+    else
+    {
+        <h1>Link inválido</h1>
+        <p>@_resultado.Erro</p>
+        <p class="secundario">Os links valem por um dia. Na tela de login dá para pedir um novo.</p>
+        <a class="botao" href="entrar">Ir para o login</a>
+    }
+</div>
+
+@code {
+    private Resultado<Vazio>? _resultado;
+
+    [SupplyParameterFromQuery] public Guid Usuario { get; set; }
+
+    [SupplyParameterFromQuery] public string? Token { get; set; }
+
+    protected override async Task OnInitializedAsync() =>
+        _resultado = string.IsNullOrEmpty(Token) || Usuario == Guid.Empty
+            ? new Resultado<Vazio>(null, "Link incompleto. Abra o link exatamente como chegou no e-mail.", System.Net.HttpStatusCode.BadRequest)
+            : await Api.PostAsync("auth/confirmar-email", new ConfirmacaoDeEmail(Usuario, Token));
+}

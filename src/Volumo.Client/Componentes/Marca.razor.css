@@ -1,0 +1,15 @@
+.marca {
+    font: 700 1.5rem/1 var(--fonte-titulo);
+    letter-spacing: .04em;
+    color: var(--texto);
+    text-decoration: none;
+}
+
+.marca::after {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 3px;
+    background: var(--acao);
+}

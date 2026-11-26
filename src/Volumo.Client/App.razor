@@ -1,0 +1,24 @@
+﻿<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(AppLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated == true)
+                {
+                    <div class="sem-acesso pilha">
+                        <h2>Sem acesso</h2>
+                        <p class="secundario">Esta área é de outro tipo de conta.</p>
+                        <a class="botao" href="/">Voltar ao início</a>
+                    </div>
+                }
+                else
+                {
+                    <RedirecionarParaEntrar />
+                }
+            </NotAuthorized>
+            <Authorizing>
+                <div class="carregando" role="status"><span class="carregando-barra"></span></div>
+            </Authorizing>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+</Router>

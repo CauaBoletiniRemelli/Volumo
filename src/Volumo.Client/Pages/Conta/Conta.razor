@@ -1,0 +1,124 @@
+@page "/conta"
+@attribute [Authorize]
+@inject ApiVolumo Api
+@inject SessaoDoUsuario Sessao
+@inject NavigationManager Navegacao
+@inject TreinosDoAluno Treinos
+@inject SincronizacaoDeSessoes Sincronizacao
+
+<PageTitle>Conta · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <h1>Conta</h1>
+</header>
+
+@if (_dados is null)
+{
+    <p class="secundario">@(_erro ?? "Carregando.")</p>
+}
+else
+{
+    <div class="painel">
+        <dl class="dados">
+            <div><dt class="rotulo">E-mail</dt><dd>@_dados.Email</dd></div>
+            @* Todo personal também tem o papel Aluno (para os próprios treinos): basta mostrar "Personal". *@
+            <div><dt class="rotulo">Tipo de conta</dt><dd>@string.Join(" e ", _dados.Papeis.Where(p => p != "Aluno" || !_dados.Papeis.Contains("Personal")))</dd></div>
+            <div>
+                <dt class="rotulo">Verificação em duas etapas</dt>
+                <dd>
+                    @if (_dados.DoisFatoresAtivo)
+                    {
+                        <span class="etiqueta etiqueta-acao">Ativa</span>
+                    }
+                    else
+                    {
+                        <span class="etiqueta">Desligada</span>
+                        <a class="botao botao-texto" href="conta/2fa">Configurar</a>
+                    }
+                </dd>
+            </div>
+        </dl>
+    </div>
+
+    @if (_dados.CorpoDoDesenho is { } corpo)
+    {
+        <section class="painel painel-corpo pilha" style="--espaco: 12px" aria-labelledby="desenho-titulo">
+            <h2 class="rotulo" id="desenho-titulo">Desenho dos músculos</h2>
+            <p class="secundario">Corpo usado para mostrar os músculos de cada exercício em "Como fazer".</p>
+            <div class="escolha" role="group" aria-labelledby="desenho-titulo">
+                @foreach (var opcao in Enum.GetValues<CorpoDoDesenho>())
+                {
+                    <button type="button" class="escolha-opcao @(corpo == opcao ? "escolha-ativa" : null)" aria-pressed="@(corpo == opcao)"
+                            disabled="@_salvandoCorpo" @onclick="() => DefinirCorpoAsync(opcao)">@(opcao == CorpoDoDesenho.Feminino ? "Feminino" : "Masculino")</button>
+                }
+            </div>
+            @if (_erroCorpo is not null)
+            {
+                <p class="campo-erro" role="alert">@_erroCorpo</p>
+            }
+        </section>
+    }
+
+    <div class="acoes-da-conta pilha" style="--espaco: 12px">
+        @if (_confirmandoSaida)
+        {
+            <p class="aviso">
+                <span class="numero">@Sincronizacao.Pendentes</span> @(Sincronizacao.Pendentes == 1 ? "treino ainda não foi enviado" : "treinos ainda não foram enviados").
+                Eles ficam guardados neste aparelho e sobem quando você entrar de novo com internet.
+            </p>
+        }
+        <button class="botao" disabled="@_saindo" @onclick="SairAsync">@(_confirmandoSaida ? "Sair mesmo assim" : "Sair deste aparelho")</button>
+    </div>
+}
+
+@code {
+    private DadosDaConta? _dados;
+    private string? _erro;
+    private bool _saindo;
+    private bool _confirmandoSaida;
+    private bool _salvandoCorpo;
+    private string? _erroCorpo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Api.GetAsync<DadosDaConta>("conta");
+        _dados = resultado.Valor;
+        _erro = resultado.Erro;
+    }
+
+    private async Task DefinirCorpoAsync(CorpoDoDesenho corpo)
+    {
+        if (_dados is null || _dados.CorpoDoDesenho == corpo)
+        {
+            return;
+        }
+
+        _salvandoCorpo = true;
+        var resultado = await Api.PutAsync("conta/desenho-do-corpo", new PreferenciaDeDesenho(corpo));
+        _salvandoCorpo = false;
+        _erroCorpo = resultado.Erro;
+        if (resultado.Ok)
+        {
+            _dados = _dados with { CorpoDoDesenho = corpo };
+        }
+    }
+
+    private async Task SairAsync()
+    {
+        if (Sincronizacao.Pendentes > 0 && !_confirmandoSaida)
+        {
+            _confirmandoSaida = true;
+            return;
+        }
+
+        _saindo = true;
+        if (Sessao.UsuarioId is not null)
+        {
+            await Treinos.LimparCopiasAsync();
+        }
+
+        await Api.PostAsync("auth/logout");
+        Sessao.Encerrar();
+        Navegacao.NavigateTo("entrar", replace: true);
+    }
+}

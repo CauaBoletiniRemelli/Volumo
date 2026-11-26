@@ -1,0 +1,31 @@
+@* Cardio do treino na tela de detalhe do aluno, separado da musculação. *@
+@using Volumo.Shared.Treinos
+
+@if (Cardios.Count > 0)
+{
+    <section class="painel" aria-label="Cardio">
+        <div class="painel-cabecalho">
+            <h3>Cardio</h3>
+            <span class="secundario">@(Momento == MomentoDoCardio.AlunoEscolhe ? "quando você preferir" : Rotulos.De(Momento).ToLowerInvariant())</span>
+        </div>
+        <ul class="lista">
+            @foreach (var cardio in Cardios.OrderBy(c => c.Ordem))
+            {
+                <li>
+                    <span class="treino-nome">@cardio.NomeDoExercicio</span>
+                    <span class="secundario">
+                        <span class="numero">@cardio.DuracaoMinutos min</span>@(string.IsNullOrWhiteSpace(cardio.Observacao) ? null : $" · {cardio.Observacao}")
+                    </span>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CardioDoPlanoSaida> Cardios { get; set; } = [];
+
+    [Parameter]
+    public MomentoDoCardio Momento { get; set; }
+}

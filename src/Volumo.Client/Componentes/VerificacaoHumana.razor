@@ -1,0 +1,64 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject ConfiguracaoDoFront Configuracao
+
+@* Widget do Cloudflare Turnstile. Entrega o token por TokenChanged; vazio quando expira. *@
+<div class="verificacao" @ref="_elemento"></div>
+@if (_falhou)
+{
+    <p class="campo-erro">Não foi possível carregar a verificação anti-robô. Recarregue a página.</p>
+}
+
+@code {
+    private ElementReference _elemento;
+    private DotNetObjectReference<VerificacaoHumana>? _referencia;
+    private string? _widgetId;
+    private bool _falhou;
+
+    [Parameter] public EventCallback<string> TokenChanged { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _referencia = DotNetObjectReference.Create(this);
+        try
+        {
+            _widgetId = await JS.InvokeAsync<string>("volumo.turnstile.renderizar", _elemento, Configuracao.TurnstileSiteKey, _referencia);
+        }
+        catch (JSException)
+        {
+            _falhou = true;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Gera um token novo (cada token vale uma vez; chame depois de um envio que falhou).</summary>
+    public async Task ReiniciarAsync()
+    {
+        await TokenChanged.InvokeAsync(string.Empty);
+        await JS.InvokeVoidAsync("volumo.turnstile.reiniciar", _widgetId);
+    }
+
+    [JSInvokable]
+    public Task Resolvido(string token) => TokenChanged.InvokeAsync(token);
+
+    [JSInvokable]
+    public Task Expirado() => TokenChanged.InvokeAsync(string.Empty);
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("volumo.turnstile.remover", _widgetId);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _referencia?.Dispose();
+    }
+}

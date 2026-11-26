@@ -1,0 +1,153 @@
+@page "/painel"
+@attribute [Authorize(Roles = "Personal")]
+@using Volumo.Shared.Painel
+@inject ApiVolumo Api
+
+<PageTitle>Painel · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <h1>Painel</h1>
+    @if (_painel is not null)
+    {
+        <p class="secundario">Atualizado <span class="numero">@_painel.GeradoEm.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)</span></p>
+        <button type="button" class="botao botao-texto" disabled="@_atualizando" @onclick="() => CarregarAsync(atualizar: true)">@(_atualizando ? "Atualizando" : "Atualizar")</button>
+    }
+</header>
+
+<ExigeDoisFatores>
+    @if (_painel is null)
+    {
+        <p class="secundario">@(_erro ?? "Carregando.")</p>
+    }
+    else if (_painel.Alunos.Count == 0)
+    {
+        <div class="painel painel-corpo pilha" style="--espaco: 14px">
+            <p>Nenhum aluno ainda. Quando seus alunos começarem a treinar, você acompanha tudo por aqui.</p>
+            <a class="botao botao-principal" href="alunos">Convidar o primeiro aluno</a>
+        </div>
+    }
+    else
+    {
+        var atencao = _painel.Alunos.Where(a => a.Situacao != SituacaoDoAluno.EmDia).OrderByDescending(a => a.DiasSemTreinar).ToList();
+        var estagnados = _painel.Alunos.SelectMany(a => a.Estagnados.Select(e => (Aluno: a, Exercicio: e))).OrderBy(x => x.Exercicio.UltimoAumentoEm).ToList();
+        var treinaram = _painel.Alunos.Count(a => a.TreinosNosUltimos7Dias > 0);
+
+        <dl class="indicadores">
+            <div><dt class="rotulo">Alunos ativos</dt><dd class="numero">@_painel.Alunos.Count</dd></div>
+            <div><dt class="rotulo">Treinaram em 7 dias</dt><dd class="numero">@treinaram</dd></div>
+            <div><dt class="rotulo">Sem treinar</dt><dd class="numero @(atencao.Count > 0 ? "indicador-alerta" : null)">@atencao.Count</dd></div>
+            <div><dt class="rotulo">Estagnações</dt><dd class="numero @(estagnados.Count > 0 ? "indicador-alerta" : null)">@estagnados.Count</dd></div>
+        </dl>
+
+        <div class="duas-colunas">
+            <div class="pilha" style="--espaco: 24px">
+                <section class="painel">
+                    <div class="painel-cabecalho">
+                        <h2>Precisam de atenção</h2>
+                        <span class="secundario">mais de <span class="numero">@_painel.DiasParaSumido</span> dias sem treinar</span>
+                    </div>
+                    @if (atencao.Count == 0)
+                    {
+                        <p class="lista-vazia">Todo mundo treinou nos últimos @_painel.DiasParaSumido dias.</p>
+                    }
+                    else
+                    {
+                        <ul class="lista lista-empilha">
+                            @foreach (var aluno in atencao)
+                            {
+                                <li>
+                                    <a class="treino-nome link-largo" href="alunos/@aluno.Id">@aluno.Nome</a>
+                                    <span class="secundario">
+                                        @if (aluno.Situacao == SituacaoDoAluno.NuncaTreinou)
+                                        {
+                                            @if (aluno.DiasSemTreinar == 0)
+                                            {
+                                                <span>ainda não treinou · entrou hoje</span>
+                                            }
+                                            else
+                                            {
+                                                <span>ainda não treinou · entrou há <span class="numero">@aluno.DiasSemTreinar</span> @Rotulos.Plural(aluno.DiasSemTreinar, "dia", "dias")</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span>há <span class="numero texto-alerta">@aluno.DiasSemTreinar</span> dias</span>
+                                        }
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                <section class="painel">
+                    <div class="painel-cabecalho"><h2>Estagnados</h2></div>
+                    @if (estagnados.Count == 0)
+                    {
+                        <p class="lista-vazia">Ninguém parado na carga pelo critério de cada aluno.</p>
+                    }
+                    else
+                    {
+                        <ul class="lista lista-empilha">
+                            @foreach (var (aluno, exercicio) in estagnados)
+                            {
+                                <li>
+                                    <span class="link-largo">
+                                        <a class="treino-nome" href="alunos/@aluno.Id">@aluno.Nome</a>
+                                        <span class="secundario"> · @exercicio.NomeDoExercicio</span>
+                                    </span>
+                                    <span class="secundario estagnacao-detalhe">
+                                        <span class="numero">@Rotulos.Kg(exercicio.MaiorCargaKg) kg</span> · @Rotulos.Estagnacao(aluno.Estagnacao.Criterio, exercicio, _painel.GeradoEm)
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+
+            <section class="painel">
+                <div class="painel-cabecalho"><h2>Todos os alunos</h2></div>
+                <ul class="lista lista-empilha">
+                    @foreach (var aluno in _painel.Alunos)
+                    {
+                        <li>
+                            <span class="link-largo">
+                                <a class="treino-nome" href="alunos/@aluno.Id">@aluno.Nome</a>
+                                <span class="secundario linha-abaixo">
+                                    @if (aluno.UltimoTreinoEm is { } ultimo)
+                                    {
+                                        <span>@(aluno.NomeDoUltimoTreino ?? "Treino livre") · <span class="numero">@Rotulos.Data(ultimo)</span></span>
+                                    }
+                                    else
+                                    {
+                                        <span>Sem treinos ainda</span>
+                                    }
+                                </span>
+                            </span>
+                            <span class="secundario"><span class="numero">@aluno.TreinosNosUltimos7Dias</span>× na semana</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        </div>
+    }
+</ExigeDoisFatores>
+
+@code {
+    private PainelDoPersonal? _painel;
+    private string? _erro;
+
+    private bool _atualizando;
+
+    protected override Task OnInitializedAsync() => CarregarAsync(atualizar: false);
+
+    private async Task CarregarAsync(bool atualizar)
+    {
+        _atualizando = true;
+        var resultado = await Api.GetAsync<PainelDoPersonal>("painel", atualizar);
+        _painel = resultado.Valor ?? _painel;
+        _erro = resultado.Erro;
+        _atualizando = false;
+    }
+}

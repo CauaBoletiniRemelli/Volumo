@@ -1,0 +1,59 @@
+@page "/modelos/novo"
+@page "/modelos/{Id:guid}"
+@attribute [Authorize(Roles = "Personal")]
+@using Volumo.Shared.Treinos
+@inject ApiVolumo Api
+@inject NavigationManager Navegacao
+
+<PageTitle>@(Id is null ? "Novo modelo" : "Modelo") · Volumo</PageTitle>
+
+<header class="cabecalho-pagina">
+    <p class="rotulo"><a href="modelos">Modelos</a></p>
+    <h1>@(Id is null ? "Novo modelo" : "Editar modelo")</h1>
+</header>
+
+<ExigeDoisFatores>
+    @if (Id is not null && _modelo is null)
+    {
+        <p class="secundario">@(_erro ?? "Carregando.")</p>
+    }
+    else
+    {
+        <ConstrutorDeTreino NomeInicial="@_modelo?.Nome" ItensIniciais="@_modelo?.Itens" CardiosIniciais="@_modelo?.Cardios"
+                            MomentoInicial="@(_modelo?.MomentoDoCardio ?? MomentoDoCardio.Depois)" OnSalvar="SalvarAsync"
+                            Salvando="_salvando" Erro="@_erro" TextoDoBotao="Salvar modelo" Cancelar="modelos" />
+    }
+</ExigeDoisFatores>
+
+@code {
+    private TemplateDetalhe? _modelo;
+    private string? _erro;
+    private bool _salvando;
+
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is { } id)
+        {
+            var resultado = await Api.GetAsync<TemplateDetalhe>($"templates/{id}");
+            _modelo = resultado.Valor;
+            _erro = resultado.Erro;
+        }
+    }
+
+    private async Task SalvarAsync(PlanoDeTreinoEntrada plano)
+    {
+        _salvando = true;
+        var resultado = Id is { } id
+            ? (await Api.PutAsync($"templates/{id}", plano)).Erro
+            : (await Api.PostAsync<RecursoCriado>("templates", plano)).Erro;
+        _salvando = false;
+        _erro = resultado;
+        if (resultado is null)
+        {
+            Navegacao.NavigateTo("modelos");
+        }
+    }
+}
